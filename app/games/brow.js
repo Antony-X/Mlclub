@@ -461,6 +461,20 @@ export function mount(root, { face }) {
   prev = performance.now();
   raf = requestAnimationFrame(frame);
 
+  // The shell can record the camera picture: the layer count goes on it too.
+  face.recOverlay = (c, w, h) => {
+    if (state === 'calib' || state === 'ready') return;
+    const text = `${TEXT.layer} ${state === 'over' ? result.score : world.score}`;
+    const size = Math.round(h * 0.06), pad = Math.round(size * 0.4), edge = Math.round(h * 0.03);
+    c.font = `700 ${size}px ${FONT}`;
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillStyle = C.bg;
+    c.fillRect(edge, h - edge - size - 2 * pad, c.measureText(text).width + 2 * pad, size + 2 * pad);
+    c.fillStyle = C.text;
+    c.fillText(text, edge + pad, h - edge - pad - size / 2);
+  };
+
   // For tests. feed({ blink: 0.7, brow: 0, jaw: 0 }) replaces the camera's signals,
   // feed({ found: false }) hides the face, feed(null) gives the camera back.
   window.__brow = {
@@ -481,6 +495,7 @@ export function mount(root, { face }) {
     el.reset.removeEventListener('click', onReset);
     document.removeEventListener('visibilitychange', onVisibility);
     view.destroy();
+    face.recOverlay = null;
     saveBest();
     delete window.__brow;
   };
