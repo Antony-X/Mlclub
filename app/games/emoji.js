@@ -311,7 +311,7 @@ export function mount(root, { face }) {
         } else if (aimMs > 0) pickMs = 0;
       } else if (!round && shown !== aimed) aimMs = 0;
       const pct = Math.round(100 * aimMs / HOLD_MS);
-      if (pct !== ringAt) { ringAt = pct; ring.style.strokeDashoffset = 100 - pct; }
+      if (pct !== ringAt) { ringAt = pct; ring.style.strokeDasharray = `${pct} 100`; }
       targetEl.classList.toggle('eg-hit', aimMs >= HOLD_MS);
     }
 

@@ -3,7 +3,7 @@
 // raise of your eyebrows is one hop.
 import { FaceView, haptic, store } from '../core.js';
 import { RaiseDetector, median } from './brow-detector.js';
-import { P, createWorld, step, flap } from './brow-world.js';
+import { P, createWorld, step, flap, playerX } from './brow-world.js';
 
 const TEXT = {
   look: 'უყურე კამერას',
@@ -83,9 +83,10 @@ export function mount(root, { face }) {
   const FONT = css.getPropertyValue('--font').trim();
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const meshRest = rgba(C.text, 0.8);
+  // The picture is small: only the mesh, the outline and the brows, which are the point here.
+  const meshRest = rgba(C.text, 0.85), none = rgba(C.text, 0);
   const view = new FaceView($('.bg-cam canvas'), face, {
-    colors: { mesh: rgba(C.text, 0.16), oval: rgba(C.text, 0.5), lips: meshRest, eyes: meshRest, brows: meshRest },
+    colors: { mesh: rgba(C.text, 0.2), oval: rgba(C.text, 0.5), lips: none, eyes: none, brows: meshRest },
   });
   const ctx = el.canvas.getContext('2d');
 
@@ -108,9 +109,7 @@ export function mount(root, { face }) {
   let fake = null;            // tests: a signal in place of the camera's
   let shown = { score: -1, best: -1 };
 
-  // Where the player sits on screen, in heights: further in on a wide screen.
   const aspect = () => (size.h ? size.w / size.h : 1);
-  const playerX = () => clamp(0.22 * aspect(), 0.10, 0.40);
   const faceHere = () => !lostAt;
 
   // ---------- states ----------
@@ -235,8 +234,8 @@ export function mount(root, { face }) {
 
   function meter(m, value, det) {
     m.num.textContent = value.toFixed(2);
-    m.fill.style.width = `${clamp(value, 0, 1) * 100}%`;
-    m.tick.style.left = `${clamp(det.fireLevel, 0, 1) * 100}%`;
+    m.fill.style.transform = `scaleX(${clamp(value, 0, 1)})`;
+    m.tick.style.transform = `translateX(${clamp(det.fireLevel, 0, 1) * 100}%)`;
     m.tick.hidden = !det.ready;
     m.box.classList.toggle('bg-on', det.raised);
   }
@@ -265,7 +264,7 @@ export function mount(root, { face }) {
     const W = size.w, H = size.h;
     if (!W || !H) return;
     const L = world.layers;
-    const left = world.x - playerX();
+    const left = world.x - playerX(aspect());
     const sx = (x) => (x - left) * H;
     const r = P.NODE_R * H, lw = Math.max(1.5, 0.0085 * H);
     const px = sx(world.x), py = world.y * H;
@@ -333,7 +332,7 @@ export function mount(root, { face }) {
     ctx.fill();
 
     if (state === 'calib' || state === 'ready') {   // as on the poster: the empty place is yours
-      ctx.font = `600 ${clamp(0.05 * H, 15, 34)}px ${FONT}`;
+      ctx.font = `600 ${clamp(0.05 * H, 16, 32)}px ${FONT}`;
       ctx.textBaseline = 'middle';
       ctx.fillStyle = C.gold;
       ctx.fillText(TEXT.you, px + r * 1.6, py);
@@ -429,7 +428,7 @@ export function mount(root, { face }) {
     get best() { return best; },
     get world() { return world; },
     get jawOn() { return jawOn; },
-    get view() { return { aspect: aspect(), playerX: playerX() }; },
+    get aspect() { return aspect(); },
     brow,
     feed(v) { fake = v; },
   };

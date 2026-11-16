@@ -7,6 +7,7 @@
 // both games share the one camera, so a phone asks for permission once.
 import { FaceTracker } from './core.js';
 
+const CLUB = 'მანქანური სწავლების კლუბი';
 const GAMES = {
   emoji: { title: 'სახე → ემოჯი', load: () => import('./games/emoji.js') },
   brow: { title: 'წარბებით ფრენა', load: () => import('./games/brow.js') },
@@ -44,11 +45,11 @@ function showGate(kind, retry) {
 }
 
 face.onprogress = (p) => {
-  const pct = `${Math.round(p * 100)}%`;
-  gateMeter.firstElementChild.style.width = pct;
+  const fill = `scaleX(${p.toFixed(3)})`;
+  gateMeter.firstElementChild.style.transform = fill;
   const bar = document.querySelector('.menu-load');
   if (bar) {
-    bar.firstElementChild.style.width = pct;
+    bar.firstElementChild.style.transform = fill;
     bar.classList.toggle('done', p >= 1);
   }
 };
@@ -78,9 +79,11 @@ function artNetwork() {
   return `<svg viewBox="0 0 96 96" fill="none" aria-hidden="true">${wires}${nodes}</svg>`;
 }
 
+let entered = false;      // the menu's entrance plays once a visit, not on every return
+
 function showMenu() {
   view.innerHTML = `
-    <nav class="menu">
+    <nav class="menu${entered ? '' : ' enter'}">
       <a class="card" href="#/emoji">
         <span class="card-art">${ART_FACE}<span class="emoji">😉</span></span>
         <b>სახე → ემოჯი</b>
@@ -92,8 +95,9 @@ function showMenu() {
         <span>აწიე წარბები და იფრინე.</span>
       </a>
       <p class="menu-note">ვიდეო არ იწერება და არსად იგზავნება.</p>
-      <div class="meter menu-load${face.progress >= 1 ? ' done' : ''}"><i style="width:${Math.round(face.progress * 100)}%"></i></div>
+      <div class="meter menu-load${face.progress >= 1 ? ' done' : ''}"><i style="transform:scaleX(${face.progress.toFixed(3)})"></i></div>
     </nav>`;
+  entered = true;
 }
 
 async function go() {
@@ -106,8 +110,8 @@ async function go() {
   view.replaceChildren();
   gate.hidden = true;
   document.body.dataset.route = id || 'menu';
-  $('title').textContent = id ? GAMES[id].title : '';
-  document.title = id ? `${GAMES[id].title} · მანქანური სწავლების კლუბი` : 'მანქანური სწავლების კლუბი';
+  $('title').textContent = id ? GAMES[id].title : CLUB;
+  document.title = id ? `${GAMES[id].title} · ${CLUB}` : CLUB;
   if (!id) { showMenu(); releaseWake(); return; }
 
   const retry = () => { if (my === token) go(); };

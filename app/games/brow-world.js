@@ -24,6 +24,8 @@ export const P = {
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 export const slotY = (i) => (i + 0.5) / P.N;
+// Where the player sits on a screen `aspect` heights wide: further in on a wide one.
+export const playerX = (aspect) => clamp(0.22 * aspect, 0.10, 0.40);
 export const gapCentre = (layer) => (layer.a + layer.k / 2) / P.N;
 
 function makeLayer(i, x, a, k) {

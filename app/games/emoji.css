@@ -53,7 +53,7 @@
 .eg-target svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .eg-target circle { fill: none; }
 .eg-ring-bg { stroke: var(--soft); stroke-width: 2; }
-.eg-ring-fg { stroke: var(--gold); stroke-width: 6; stroke-dasharray: 100; stroke-dashoffset: 100; }
+.eg-ring-fg { stroke: var(--gold); stroke-width: 6; stroke-dasharray: 0 100; }
 .eg-hit .eg-ring-fg { stroke: var(--green); }
 .eg-target .emoji { font-size: 42px; line-height: 1; }
 .eg-hint { display: none; margin: 0; padding-left: 12px; font: 700 18px/1.2 var(--font); letter-spacing: var(--tight); }
