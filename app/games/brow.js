@@ -1,14 +1,13 @@
 // "თვალებით ფრენა": the club poster in motion. A network of layers scrolls
 // past, each with neurons missing; you are the missing neuron, and every
-// blink is one hop. (Raised eyebrows and an open mouth hop too.)
-import { FaceView, haptic, store } from '../core.js';
-import { RaiseDetector, median, BLINK, BROW, JAW } from './brow-detector.js';
+// blink is one hop.
+import { FaceView, haptic, store, palette, theme } from '../core.js';
+import { BlinkDetector, median } from './brow-detector.js';
 import { P, createWorld, step, flap, playerX } from './brow-world.js';
 
 const TEXT = {
   look: 'უყურე კამერას',
   blink: 'დაახამხამე',
-  mouth: 'ან გააღე პირი',
   lost: 'სახე არ ჩანს',
   layer: 'შრე',
   best: 'რეკორდი',
@@ -16,27 +15,18 @@ const TEXT = {
   you: 'შენ',
 };
 
-// The movements that hop. Each is one number made of the model's outputs, and
-// lights up its part of the face in the small camera picture.
-const CONTROLS = [
-  { id: 'blink', part: 'eyes', options: BLINK, of: (r) => (r.eyeBlinkLeft + r.eyeBlinkRight) / 2 },
-  // One brow output alone is not enough: on real faces the inner one twitches when
-  // the head turns, and some raises show mostly in the outer two, or in one of them.
-  { id: 'brow', part: 'brows', options: BROW, of: (r) => (r.browInnerUp + r.browOuterUpLeft + r.browOuterUpRight) / 3 },
-  { id: 'jaw', part: 'lips', options: JAW, of: (r) => r.jawOpen },
-];
-const METER = 'eyeBlink';   // the model's name for what the meter shows
+const METER = 'eyeBlink';   // the model's name for what the meter shows: the mean of its left and right
+const blinkOf = (raw) => ((raw.eyeBlinkLeft || 0) + (raw.eyeBlinkRight || 0)) / 2;
 
 const CALIB_MS = 1000;      // of resting face before the first hop
 const LOST_MS = 300;        // no face for this long stops a run
 const NEW_FACE_MS = 2500;   // no face for this long between runs: the next face is a new visitor
 const ABANDON_MS = 5000;    // ... and in the middle of a run
-const HINT_MS = 5000;       // nothing hopped on the start screen: say the mouth works too
+const SOFTEN_MS = 5000;     // no blink heard on the start screen: listen for weaker ones
 const LOCK_MS = 1500;       // the result stays up this long before a blink can start again,
 const RETRY_MS = 800;       // or this long when the run was over at once: straight back in
 const SHORT_RUN = 3;        // layers
 const QUIET_MS = 350;       // after a hop nothing hops: one blink, however it is made, is one hop
-const REOPEN_MS = 250;      // brows and mouth also wait this long after the eyes have opened again
 const LIT_MS = 250;         // a blink is short: keep it visible this long
 const FLASH_MS = 240;
 const MAX_FRAME = 0.1;      // s, a longer hitch is not played back
@@ -72,7 +62,6 @@ export function mount(root, { face }) {
           <p class="bg-result" hidden><span>${TEXT.layer}</span> <b class="num"></b></p>
           <p class="bg-best" hidden>${TEXT.best} <span class="num"></span></p>
           <p class="bg-ask"></p>
-          <p class="bg-or" hidden>${TEXT.mouth}</p>
         </div>
       </div>
     </div>`;
@@ -83,48 +72,46 @@ export function mount(root, { face }) {
     sig: $('.bg-sig'), sigN: $('.bg-sig .num'), fill: $('.bg-bar i'), tick: $('.bg-bar b'),
     now: $('.bg-now b'), top: $('.bg-top'), topN: $('.bg-top span'),
     result: $('.bg-result'), resultN: $('.bg-result b'), best: $('.bg-best'), bestN: $('.bg-best span'),
-    ask: $('.bg-ask'), or: $('.bg-or'),
+    ask: $('.bg-ask'),
   };
 
-  const css = getComputedStyle(document.documentElement);
-  const C = {};
-  for (const k of ['bg', 'line', 'text', 'soft', 'gold', 'salmon']) C[k] = css.getPropertyValue(`--${k}`).trim();
-  const FONT = css.getPropertyValue('--font').trim();
+  const FONT = getComputedStyle(document.documentElement).getPropertyValue('--font').trim();
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // The picture is small: a faint mesh, the outline, and the parts that hop.
-  const dim = { eyes: rgba(C.text, 0.6), brows: rgba(C.text, 0.6), lips: rgba(C.text, 0) };
-  const view = new FaceView($('.bg-cam canvas'), face, {
-    colors: { mesh: rgba(C.text, 0.2), oval: rgba(C.text, 0.5), ...dim },
-  });
   const ctx = el.canvas.getContext('2d');
 
-  const controls = CONTROLS.map((c) => ({ ...c, det: new RaiseDetector(c.options), value: 0, at: -Infinity }));
-  const blink = controls[0];
+  // The picture is small: a faint mesh, the outline, and the eyes, which are the control.
+  const view = new FaceView($('.bg-cam canvas'), face, { colors: {} });
+  let C, eyes;                // the theme's colours; the eyes' colour at rest
+  function colours() {
+    C = palette();
+    const ink = theme() === 'light' ? C.bg : C.text;      // light lines: they lie on a photo
+    eyes = rgba(ink, 0.7);
+    Object.assign(view.colors, { mesh: rgba(ink, 0.2), oval: rgba(ink, 0.5), brows: rgba(ink, 0), lips: rgba(ink, 0), eyes });
+  }
+  colours();
+
+  const det = new BlinkDetector();
 
   // 'calib' -> 'ready' -> 'play' <-> 'frozen', 'play' -> 'over' -> 'play'
   let state = 'calib';
   let world = createWorld();
   let best = store.get('brow.best', 0);
   let result = null;          // { score, best, record } of the last run that counted
-  let hint = false;           // nothing hopped for a while: the mouth line is shown
-  let hopped = false;         // this visitor's face has made a hop
   let calib = null;           // resting samples being collected
   let lostAt = 0;             // when the face went away (0: it is here)
   let runFace = false;        // a face has been seen in this run (keyboard runs need none)
   let hops = 0, from = 'ready';   // of this run: how many hops, and where it began
-  let quietUntil = 0;         // no face movement hops before this
-  let shutUntil = 0;          // ... and no brows or mouth before this
-  let readyAt = 0, overAt = 0, asked = false;
+  let value = 0, blinkAt = -Infinity;
+  let quietUntil = 0;         // no blink hops before this
+  let readyAt = 0, overAt = 0, asked = false, softened = false;
   let flash = null;           // { layer, at }
   let size = { w: 0, h: 0 }, dpr = 1;
   let prev = 0, acc = 0, raf = 0;
   let lastCam = null;
-  let fake = null;            // tests: signals in place of the camera's
+  let fake = null;            // tests: a signal in place of the camera's
   const shown = { score: -1, best: -1 };
 
   const aspect = () => (size.h ? size.w / size.h : 1);
-  const measured = () => blink.det.ready;
   const lockout = () => (result && result.score >= SHORT_RUN ? LOCK_MS : RETRY_MS);
 
   // ---------- states ----------
@@ -144,21 +131,18 @@ export function mount(root, { face }) {
       el.bestN.textContent = result.best;
       el.best.classList.toggle('bg-new', result.record);
     }
-    const ask =
+    el.ask.textContent =
       state === 'calib' ? TEXT.look
       : state === 'frozen' && lostAt ? TEXT.lost
       : state === 'play' ? ''
       : TEXT.blink;
-    el.ask.textContent = ask;
-    const waiting = over && !asked;                // keeps its place, so nothing jumps
-    el.ask.style.visibility = el.or.style.visibility = waiting ? 'hidden' : '';
-    el.or.hidden = !(hint && ask === TEXT.blink);
+    el.ask.style.visibility = over && !asked ? 'hidden' : '';    // keeps its place, so nothing jumps
   }
 
   function recalibrate() {
     saveBest();
-    for (const c of controls) c.det.reset();
-    hint = hopped = false;
+    det.reset();
+    softened = false;
     calib = null;
     flash = null;
     result = null;
@@ -195,7 +179,7 @@ export function mount(root, { face }) {
     const stray = hops < 2 && world.score === 0;
     if (stray && from === 'ready') {
       world = createWorld();
-      setState(measured() ? 'ready' : 'calib');
+      setState(det.ready ? 'ready' : 'calib');
       return;
     }
     if (!stray) {
@@ -208,7 +192,7 @@ export function mount(root, { face }) {
     setState('over');
   }
 
-  // A blink, a raise of the eyebrows, an open mouth, or a key.
+  // A blink, or a key.
   function hop(now, viaFace) {
     if (state === 'over' && now - overAt < lockout()) return;
     if (state === 'calib' && viaFace) return;
@@ -235,45 +219,30 @@ export function mount(root, { face }) {
     lostAt = 0;
     if (state === 'play') runFace = true;
     if (away && state === 'frozen') message();
-    for (const c of controls) c.value = c.of(res.raw) || 0;
-    meter();
+    value = blinkOf(res.raw);
+    el.sigN.textContent = value.toFixed(2);
+    el.fill.style.transform = `scaleX(${clamp(value, 0, 1)})`;
 
     if (state === 'calib') {
-      if (!calib || now - calib.last > LOST_MS) calib = { t0: now, n: 0, of: controls.map(() => []) };
-      controls.forEach((c, i) => calib.of[i].push(c.value));
-      calib.n++;
+      if (!calib || now - calib.last > LOST_MS) calib = { t0: now, values: [] };
+      calib.values.push(value);
       calib.last = now;
-      if (now - calib.t0 >= CALIB_MS && calib.n >= 6) {
-        controls.forEach((c, i) => c.det.calibrate(median(calib.of[i]), now));
+      if (now - calib.t0 >= CALIB_MS && calib.values.length >= 6) {
+        det.calibrate(median(calib.values), now);
         readyAt = now;
         setState('ready');
       }
       return;
     }
     // Back from a break (or a run begun on the keyboard): no comparing across it.
-    if (!measured() || away > LOST_MS) for (const c of controls) c.det.calibrate(c.value, now);
+    if (!det.ready || away > LOST_MS) det.calibrate(value, now);
 
-    // A hard blink drags the brows and the mouth along, and they spring back
-    // when the eyes open: while the eyes are shut, and just after, only the blink counts.
-    let moved = false;
-    for (const c of controls) {
-      if (!c.det.update(c.value, now) || now < quietUntil || (c !== blink && now < shutUntil)) continue;
-      c.at = now;
-      moved = true;
-    }
-    if (blink.det.raised) shutUntil = now + REOPEN_MS;
-    if (!moved) return;
+    const blinked = det.update(value, now);
+    el.tick.style.transform = `translateX(${clamp(det.fireLevel, 0, 1) * 100}%)`;
+    if (!blinked || now < quietUntil) return;
     quietUntil = now + QUIET_MS;
-    hopped = true;
+    blinkAt = now;
     hop(now, true);
-  }
-
-  function meter() {
-    const d = blink.det;
-    el.sigN.textContent = blink.value.toFixed(2);
-    el.fill.style.transform = `scaleX(${clamp(blink.value, 0, 1)})`;
-    el.tick.style.transform = `translateX(${clamp(d.fireLevel, 0, 1) * 100}%)`;
-    el.tick.hidden = !d.ready;
   }
 
   // ---------- drawing ----------
@@ -384,16 +353,17 @@ export function mount(root, { face }) {
 
     const cam = face.detect(now);
     if (cam) lastCam = cam;
-    const res = !fake ? cam : fake.found === false ? { found: false } : { found: true, raw: fakeRaw(fake) };
+    const res = !fake ? cam
+      : fake.found === false ? { found: false }
+      : { found: true, raw: { eyeBlinkLeft: fake.blink || 0, eyeBlinkRight: fake.blink || 0 } };
     if (res) onResult(res, now);
 
     const gone = lostAt ? now - lostAt : 0;
     if (state === 'ready') {
       if (gone > NEW_FACE_MS) recalibrate();
-      else if (!hint && !hopped && !gone && now - readyAt > HINT_MS) {
-        hint = true;
-        for (const c of controls) c.det.soften();   // and a faint movement is enough from now on
-        message();
+      else if (!softened && !gone && now - readyAt > SOFTEN_MS) {
+        softened = true;
+        det.soften();
       }
     } else if (state === 'play') {
       if (runFace && gone > LOST_MS) freeze();
@@ -424,22 +394,16 @@ export function mount(root, { face }) {
       el.topN.textContent = shown.best = best;
       el.top.hidden = !best;
     }
-    for (const c of controls) {
-      const lit = c.det.raised || now - c.at < LIT_MS;
-      view.colors[c.part] = lit ? C.gold : dim[c.part];
-      if (c === blink) el.sig.classList.toggle('bg-on', lit);
-    }
+    const lit = det.shut || now - blinkAt < LIT_MS;
+    view.colors.eyes = lit ? C.gold : eyes;
+    el.sig.classList.toggle('bg-on', lit);
+    el.tick.hidden = !det.ready;
     view.draw(lastCam);
     draw(now);
   }
 
-  function fakeRaw(f) {
-    const b = f.blink || 0, w = f.brow || 0;
-    return { eyeBlinkLeft: b, eyeBlinkRight: b, browInnerUp: w, browOuterUpLeft: w, browOuterUpRight: w, jawOpen: f.jaw || 0 };
-  }
-
   // ---------- controls ----------
-  // A tap on the screen is deliberately not a hop: this is played with the face.
+  // A tap on the screen is deliberately not a hop: this is played with the eyes.
 
   function onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -460,6 +424,7 @@ export function mount(root, { face }) {
   ro.observe(el.stage);
   resize();
   addEventListener('keydown', onKey);
+  addEventListener('themechange', colours);
   el.reset.addEventListener('click', onReset);
   document.addEventListener('visibilitychange', onVisibility);
   document.fonts.load(`600 20px ${FONT}`, TEXT.you).catch(() => {});   // the canvas does not ask for it by itself
@@ -471,27 +436,26 @@ export function mount(root, { face }) {
   face.recOverlay = (c, w, h) => {
     if (state === 'calib' || state === 'ready') return;
     const text = `${TEXT.layer} ${state === 'over' ? result.score : world.score}`;
-    const size = Math.round(h * 0.06), pad = Math.round(size * 0.4), edge = Math.round(h * 0.03);
-    c.font = `700 ${size}px ${FONT}`;
+    const px = Math.round(h * 0.06), pad = Math.round(px * 0.4), edge = Math.round(h * 0.03);
+    c.font = `700 ${px}px ${FONT}`;
     c.textAlign = 'left';
     c.textBaseline = 'middle';
     c.fillStyle = C.bg;
-    c.fillRect(edge, h - edge - size - 2 * pad, c.measureText(text).width + 2 * pad, size + 2 * pad);
+    c.fillRect(edge, h - edge - px - 2 * pad, c.measureText(text).width + 2 * pad, px + 2 * pad);
     c.fillStyle = C.text;
-    c.fillText(text, edge + pad, h - edge - pad - size / 2);
+    c.fillText(text, edge + pad, h - edge - pad - px / 2);
   };
 
-  // For tests. feed({ blink: 0.7, brow: 0, jaw: 0 }) replaces the camera's signals,
+  // For tests. feed({ blink: 0.7 }) replaces the camera's signal,
   // feed({ found: false }) hides the face, feed(null) gives the camera back.
   window.__brow = {
     get state() { return state; },
     get score() { return world.score; },
     get best() { return best; },
     get world() { return world; },
-    get hint() { return hint; },
     get hops() { return hops; },
     get aspect() { return aspect(); },
-    detectors: Object.fromEntries(controls.map((c) => [c.id, c.det])),
+    detector: det,
     feed(v) { fake = v; },
   };
 
@@ -499,6 +463,7 @@ export function mount(root, { face }) {
     cancelAnimationFrame(raf);
     ro.disconnect();
     removeEventListener('keydown', onKey);
+    removeEventListener('themechange', colours);
     el.reset.removeEventListener('click', onReset);
     document.removeEventListener('visibilitychange', onVisibility);
     view.destroy();

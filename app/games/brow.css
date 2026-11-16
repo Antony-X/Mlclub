@@ -63,7 +63,6 @@
   font-size: max(var(--t-body), .5em); font-weight: 400; letter-spacing: 0; color: var(--soft);
 }
 .bg-msg .bg-best.bg-new { color: var(--gold); }
-.bg-msg .bg-or { font-size: max(var(--t-body), .6em); font-weight: 600; color: var(--soft); }
 
 @media (max-aspect-ratio: 1/1) {
   /* The play area is never narrower than 0.56 of its height (MIN_ASPECT in
