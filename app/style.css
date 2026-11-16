@@ -1,0 +1,105 @@
+:root {
+  --bg: #111316; --panel: #1a1d21; --line: #30353b;
+  --text: #ece8df; --soft: #8b9096;
+  --gold: #e7c46b; --blue: #6fb6ce; --salmon: #d9776b; --green: #8cc084;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: "FiraGO", "Segoe UI", "Noto Sans Georgian", "Sylfaen", sans-serif;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.emoji { font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
+
+header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 20px; border-bottom: 1px solid var(--line); flex: none;
+}
+header .logo { width: 30px; height: 30px; color: var(--text); flex: none; }
+header .club { font-weight: 600; font-size: 15px; }
+header .title { color: var(--gold); font-weight: 600; font-size: 15px; }
+header .privacy { margin-left: auto; color: var(--soft); font-size: 13px; }
+header a { color: var(--soft); text-decoration: none; font-size: 13px; border: 1px solid var(--line); padding: 5px 12px; border-radius: 6px; }
+header a:hover { color: var(--text); border-color: var(--soft); }
+
+button {
+  font: inherit; font-weight: 600; font-size: 15px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 16px; cursor: pointer;
+}
+button:hover { border-color: var(--soft); }
+button.primary { background: var(--gold); color: #111316; border-color: var(--gold); }
+kbd { font: inherit; font-size: 11px; color: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
+button.primary kbd { color: #111316; border-color: rgba(17,19,22,.4); }
+
+.overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 24px; font-size: 22px; font-weight: 600;
+  background: rgba(17,19,22,.82); border-radius: 12px;
+}
+.overlay[hidden] { display: none; }
+
+/* ---------- menu ---------- */
+.menu { flex: 1; display: flex; align-items: center; justify-content: center; gap: 28px; padding: 24px; flex-wrap: wrap; }
+.card {
+  width: min(380px, 90vw); padding: 34px 28px; text-align: center; text-decoration: none; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+}
+.card:hover { border-color: var(--gold); }
+.card .big { font-size: 84px; line-height: 1.1; }
+.card h2 { margin: 14px 0 6px; font-size: 24px; }
+.card p { margin: 0; color: var(--soft); font-size: 15px; }
+
+/* ---------- emoji game ---------- */
+.emoji-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; padding: 16px 20px; }
+.stage { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 12px; overflow: hidden; }
+.stage canvas { max-width: 100%; max-height: 100%; display: block; }
+.fps { position: absolute; left: 10px; bottom: 8px; font-size: 11px; color: var(--soft); font-variant-numeric: tabular-nums; }
+.side { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.now { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 150px; }
+.now .current { font-size: 112px; line-height: 1; transition: transform .12s; }
+.now.hit .current { transform: scale(1.18); }
+.now .target { display: none; text-align: center; }
+.now .target .lbl { color: var(--soft); font-size: 13px; margin-bottom: 4px; }
+.now .target .t { font-size: 84px; line-height: 1; }
+.now .arrow { display: none; color: var(--soft); font-size: 30px; }
+body.playing .now .target, body.playing .now .arrow { display: block; }
+body.playing .now .current { font-size: 84px; }
+.now.hit { border-color: var(--green); }
+.hud { display: flex; gap: 10px; }
+.hud .stat { flex: 1; text-align: center; }
+.hud .stat .lbl { color: var(--soft); font-size: 12px; }
+.hud .stat .val { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hud .stat.time .val { color: var(--gold); }
+.bars { display: grid; gap: 5px; }
+.bar { display: grid; grid-template-columns: 150px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; color: var(--soft); font-family: Consolas, "DejaVu Sans Mono", monospace; }
+.bar .track { height: 7px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--blue); border-radius: 4px; }
+.bar .num { text-align: right; font-variant-numeric: tabular-nums; }
+.collection { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.collection .head { display: flex; justify-content: space-between; color: var(--soft); font-size: 13px; margin-bottom: 8px; }
+.collection .head b { color: var(--text); font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; font-size: 26px; text-align: center; }
+.grid span { opacity: .18; filter: grayscale(1); border-radius: 6px; line-height: 1.35; }
+.grid span.on { opacity: 1; filter: none; background: rgba(231,196,107,.12); }
+.actions { display: flex; gap: 10px; }
+.actions button { flex: 1; }
+.result { font-size: 30px; }
+.result small { display: block; color: var(--soft); font-size: 15px; font-weight: 400; margin-top: 10px; }
+
+@media (max-height: 800px) {
+  .now { min-height: 120px; }
+  .now .current { font-size: 88px; }
+  .grid { font-size: 22px; }
+  .emoji-main { grid-template-columns: minmax(0, 1fr) 370px; padding: 12px 16px; gap: 12px; }
+  .side { gap: 9px; }
+}
+
+/* ---------- brow game ---------- */
+.brow-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; padding: 14px 20px; }
+.brow-stage { position: relative; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.brow-stage canvas { max-width: 100%; max-height: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+.brow-side { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.brow-side canvas { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; background: var(--panel); }
