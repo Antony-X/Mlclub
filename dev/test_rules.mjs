@@ -42,7 +42,7 @@ let bad = 0;
 for (const r of EMOJIS) {
   const c = cases[r.e];
   if (!c) { console.log('NO CASE', r.e); bad++; continue; }
-  const sc = scoreAll(features(c[0], c[1] || 0));
+  const sc = scoreAll(features({ bs: c[0], roll: c[1] || 0 }));
   const top = best(sc);
   const second = [...sc].filter(([k]) => k !== top.e).sort((a, b) => b[1] - a[1])[0];
   const ok = top.e === r.e && top.s - second[1] >= 0.1;
