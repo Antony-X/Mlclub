@@ -1,10 +1,11 @@
 /* სახე → ემოჯი. One grid fills #view. Three layouts: phone portrait (the
    default), phone landscape, laptop. Sizes follow the box (cq units) and never
-   the viewport, so the browser's bars cannot push anything off screen. */
+   the viewport, so the browser's bars cannot push anything off screen.
+   Spacing is the --s scale; the outer left and right lines are --pad. */
 .eg {
   position: absolute; inset: 0;
   display: grid;
-  grid-template: "cam" minmax(0, 1fr) "strip" 92px "coll" auto "acts" auto / minmax(0, 1fr);
+  grid-template: "cam" minmax(0, 1fr) "strip" 96px "coll" auto "acts" auto / minmax(0, 1fr);
   container-type: size;
 }
 
@@ -15,54 +16,62 @@
 .eg-clock { position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--line); }
 .eg-clock i { display: block; height: 100%; background: var(--text); transform-origin: 0 50%; }
 
-.eg-hud { position: absolute; inset: 4px 0 auto 0; display: flex; justify-content: space-between; padding: 8px; pointer-events: none; }
-.eg-stat { display: flex; align-items: baseline; gap: 8px; padding: 5px 10px; background: var(--bg); border: 1px solid var(--line); }
-.eg-stat small { font-size: 13px; color: var(--soft); }
-.eg-stat b { min-width: 1.3em; text-align: right; font: 700 24px/1.1 var(--font); letter-spacing: var(--tight); }
+.eg-hud {
+  position: absolute; inset: 4px 0 auto 0;
+  display: flex; justify-content: space-between;
+  padding: var(--s-3) var(--pad); pointer-events: none;
+}
+.eg-stat {
+  display: flex; align-items: baseline; gap: var(--s-2);
+  padding: var(--s-1) var(--s-3); background: var(--bg); border: 1px solid var(--line);
+}
+.eg-stat small { font-size: var(--t-label); color: var(--soft); }
+.eg-stat b { min-width: 1.3em; text-align: right; font: 700 var(--t-title)/1.2 var(--font); letter-spacing: var(--tight); }
 
 .eg-msg, .eg-result {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   margin: 0; background: var(--bg); border: 1px solid var(--line);
 }
-.eg-msg { padding: 10px 16px; white-space: nowrap; font: 700 20px/1.2 var(--font); letter-spacing: var(--tight); }
+.eg-msg { padding: var(--s-3) var(--s-4); white-space: nowrap; font: 700 var(--t-lead)/1.2 var(--font); letter-spacing: var(--tight); }
 .eg-result:not([hidden]) ~ .eg-msg { display: none; }
-.eg-result { display: grid; justify-items: center; gap: 4px; padding: 14px 32px 16px; cursor: pointer; }
-.eg-result small { font-size: 14px; color: var(--soft); }
-.eg-result > b { font: 700 84px/1 var(--font); letter-spacing: var(--tight); color: var(--gold); }
-.eg-result span { font-size: 15px; color: var(--soft); white-space: nowrap; }
+.eg-result { display: grid; justify-items: center; gap: var(--s-1); padding: var(--s-4) var(--s-6); }
+.eg-result small { font-size: var(--t-label); line-height: 1.2; color: var(--soft); }
+.eg-result > b { font: 700 80px/1 var(--font); letter-spacing: var(--tight); color: var(--gold); }
+.eg-result span { font-size: var(--t-body); line-height: 1.2; color: var(--soft); white-space: nowrap; }
 .eg-result span b { font-weight: 600; color: var(--text); }
 
 /* ---------- the emoji now, and either the model's numbers or a target ---------- */
 .eg-strip {
   grid-area: strip; min-width: 0;
-  display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center;
-  padding-right: 12px; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s-3); align-items: center;
+  padding: 0 var(--pad); border-top: 1px solid var(--line);
 }
-.eg-now { font-size: 60px; line-height: 1; text-align: center; }
+.eg-now { font-size: 56px; line-height: 1; }
 .eg-lost .eg-now, .eg-calib .eg-now { opacity: .35; }
 
-.eg-bars { display: grid; gap: 7px; min-width: 0; }
+.eg-bars { display: grid; gap: var(--s-2); min-width: 0; }
 .eg-lost .eg-bars { visibility: hidden; }
-.eg-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; font: 400 12px/1.2 var(--mono); }
+.eg-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s-2); font: 400 var(--t-label)/1.2 var(--mono); }
 .eg-bar span { color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eg-bar b { font-weight: 400; font-variant-numeric: tabular-nums; }
-.eg-bar > i { grid-column: 1 / -1; height: 3px; margin-top: 3px; background: var(--line); overflow: hidden; }
-.eg-bar > i > i { display: block; height: 100%; background: var(--blue); transform-origin: 0 50%; transform: scaleX(0); }
+.eg-bar > i { grid-column: 1 / -1; height: 4px; margin-top: var(--s-1); background: var(--line); overflow: hidden; }
+.eg-bar > i > i { display: block; height: 100%; background: var(--text); transform-origin: 0 50%; transform: scaleX(0); }
 
-.eg-target { position: relative; display: none; place-items: center; width: 74px; height: 74px; }
+.eg-target { position: relative; display: none; place-items: center; width: 80px; height: 80px; }
 .eg-target svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .eg-target circle { fill: none; }
 .eg-ring-bg { stroke: var(--soft); stroke-width: 2; }
 .eg-ring-fg { stroke: var(--gold); stroke-width: 6; stroke-dasharray: 0 100; }
-.eg-hit .eg-ring-fg { stroke: var(--green); }
-.eg-target .emoji { font-size: 42px; line-height: 1; }
-.eg-hint { display: none; margin: 0; padding-left: 12px; font: 700 18px/1.2 var(--font); letter-spacing: var(--tight); }
+.eg-target .emoji { font-size: 48px; line-height: 1; }
+.eg-hint { display: none; margin: 0; font: 700 var(--t-lead)/1.2 var(--font); letter-spacing: var(--tight); }
 
 /* ---------- the collection ---------- */
+/* The cells reach past the --pad line by their own inner margin, so the glyphs
+   stand on it (the top bar's back arrow does the same). */
 .eg-coll {
   grid-area: coll; min-height: 0;
-  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 44px;
-  border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); grid-auto-rows: 44px;
+  padding: 0 calc(var(--pad) - var(--s-3)); border-top: 1px solid var(--line);
 }
 .eg-cell {
   display: grid; place-items: center; min-width: 0; min-height: 0; margin: 0; padding: 0;
@@ -73,40 +82,46 @@
 .eg-cell span { opacity: .3; filter: grayscale(1); }
 .eg-cell.eg-on span { opacity: 1; filter: none; }
 .eg-cell.eg-sel { outline: 1px solid var(--gold); outline-offset: -1px; }
-.eg-cell:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.eg-cell:focus-visible { outline-offset: -2px; }
 
 /* ---------- reset, count, play ---------- */
 .eg-acts {
   grid-area: acts;
-  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
-  padding: 8px 12px; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--s-3);
+  padding: var(--s-2) var(--pad); border-top: 1px solid var(--line);
 }
 .eg-acts .btn { justify-self: end; white-space: nowrap; }
 .eg-acts .btn:first-child { justify-self: start; }
-.eg-count { font: 400 16px/1 var(--mono); }
+.eg-count { font: 400 var(--t-body)/1 var(--mono); white-space: nowrap; }
 
 /* ---------- small screens: three bars, and a target takes their place ---------- */
 @media (max-width: 899px), (max-height: 520px) {
   .eg-bar:nth-child(n+4) { display: none; }
-  .eg-aim .eg-strip { grid-template-columns: 92px 74px minmax(0, 1fr); }
+  .eg-aim .eg-strip { grid-template-columns: auto auto minmax(0, 1fr); }
   .eg-aim .eg-bars { display: none; }
   .eg-aim .eg-target { display: grid; }
   .eg-aim .eg-hint { display: block; }
 }
+/* The narrowest phones: everything a step smaller, nothing dropped. */
+@media (max-width: 359px) {
+  .eg-acts .btn { padding: 0 var(--s-4); }
+  .eg-target { width: 64px; height: 64px; }
+  .eg-target .emoji { font-size: 36px; }
+  .eg-hint { font-size: var(--t-body); }
+}
 
 /* ---------- phone on its side: camera left, everything else right ---------- */
 @media (orientation: landscape) and (max-height: 520px) {
-  .eg { grid-template: "cam strip" 70px "cam coll" minmax(0, 1fr) "cam acts" auto / minmax(0, 1fr) min(58%, 500px); }
+  .eg { grid-template: "cam strip" 64px "cam coll" minmax(0, 1fr) "cam acts" auto / minmax(0, 1fr) min(62%, 520px); }
   .eg-cam { border-right: 1px solid var(--line); }
-  .eg-strip { border-top: 0; grid-template-columns: 76px minmax(0, 1fr); }
-  .eg-aim .eg-strip { grid-template-columns: 76px 62px minmax(0, 1fr); }
-  .eg-now { font-size: 46px; }
-  .eg-target { width: 60px; height: 60px; }
-  .eg-target .emoji { font-size: 34px; }
+  .eg-strip { border-top: 0; }
+  .eg-now { font-size: 44px; }
+  .eg-target { width: 56px; height: 56px; }
+  .eg-target .emoji { font-size: 32px; }
   .eg-bar:nth-child(n+3) { display: none; }
-  .eg-coll { grid-template-columns: repeat(10, minmax(0, 1fr)); grid-auto-rows: calc(100% / var(--r10, 4)); }
-  .eg-cell { font-size: 24px; }
-  .eg-acts { padding: 6px 12px; }
+  .eg-bars { gap: var(--s-1); }
+  /* Ten columns; the rows share the height that is left. */
+  .eg-coll { grid-template-columns: repeat(10, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
 }
 
 /* ---------- laptop: camera left, a panel right, read from two metres ---------- */
@@ -114,47 +129,47 @@
   .eg { grid-template: "cam strip" auto "cam coll" minmax(0, 1fr) "cam acts" auto / minmax(0, 1fr) clamp(400px, 36%, 700px); }
   .eg-cam { border-right: 1px solid var(--line); }
 
-  .eg-clock { height: 6px; }
-  .eg-hud { inset: 6px 0 auto 0; padding: 16px; }
-  .eg-stat { gap: 12px; padding: 8px 16px; }
-  .eg-stat small { font-size: 18px; font-size: clamp(16px, 2.4cqh, 26px); }
+  .eg-clock { height: 8px; }
+  .eg-hud { inset: 8px 0 auto 0; padding: var(--s-4) var(--pad); }
+  .eg-stat { gap: var(--s-3); padding: var(--s-2) var(--s-4); }
+  .eg-stat small { font-size: var(--t-lead); font-size: clamp(var(--t-body), 2.4cqh, var(--t-title)); }
   .eg-stat b { font-size: 44px; font-size: clamp(40px, 6.4cqh, 76px); }
-  .eg-msg { padding: 14px 24px; font-size: 30px; font-size: clamp(26px, 4.2cqh, 46px); }
-  .eg-result { padding: 24px 56px 28px; gap: 8px; }
-  .eg-result small { font-size: 20px; font-size: clamp(18px, 2.6cqh, 28px); }
+  .eg-msg { padding: var(--s-4) var(--s-5); font-size: 32px; font-size: clamp(var(--t-title), 4.2cqh, 48px); }
+  .eg-result { padding: var(--s-5) var(--s-7); gap: var(--s-2); }
+  .eg-result small { font-size: var(--t-lead); font-size: clamp(var(--t-body), 2.4cqh, var(--t-title)); }
   .eg-result > b { font-size: 160px; font-size: clamp(120px, 24cqh, 260px); }
-  .eg-result span { font-size: 22px; font-size: clamp(20px, 3cqh, 32px); }
+  .eg-result span { font-size: var(--t-lead); font-size: clamp(var(--t-lead), 3cqh, 32px); }
 
   .eg-strip {
-    border-top: 0; padding: 20px 28px 0; padding: 2.8cqh 2.2cqw 0;
-    grid-template-columns: auto minmax(0, 1fr); row-gap: 10px; row-gap: 1.4cqh;
+    border-top: 0; grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--s-5); row-gap: var(--s-3); row-gap: clamp(var(--s-2), 1.4cqh, var(--s-4));
+    padding-top: var(--s-5); padding-top: clamp(var(--s-4), 2.8cqh, var(--s-6));
   }
-  .eg-now { text-align: left; font-size: 140px; font-size: clamp(110px, 20cqh, 250px); line-height: 1.15; }
+  .eg-now { font-size: 140px; font-size: clamp(110px, 20cqh, 250px); line-height: 1.15; }
   /* The ring and the hint keep their place when empty, so nothing below moves. */
   .eg-target {
-    display: grid; visibility: hidden; margin-left: 24px; margin-left: 2.2cqw;
+    display: grid; visibility: hidden;
     width: 160px; height: 160px; width: clamp(126px, 23cqh, 288px); height: clamp(126px, 23cqh, 288px);
   }
   .eg-target .emoji { font-size: 90px; font-size: clamp(70px, 12.8cqh, 160px); }
   .eg-ring-bg { stroke-width: 1.5; }
   .eg-ring-fg { stroke-width: 5; }
   .eg-hint {
-    display: block; visibility: hidden; grid-column: 1 / -1; padding: 0; min-height: 1.2em;
-    white-space: nowrap; font-size: 24px; font-size: clamp(22px, 3.3cqh, 40px);
+    display: block; visibility: hidden; grid-column: 1 / -1; min-height: 1.2em; white-space: nowrap;
+    font-size: var(--t-title); font-size: clamp(var(--t-title), 3.4cqh, 40px);
   }
   .eg-aim .eg-target, .eg-aim .eg-hint { visibility: visible; }
 
-  .eg-bars { grid-column: 1 / -1; gap: 8px; gap: 1.2cqh; }
-  .eg-bar { font-size: 14px; font-size: clamp(13px, 1.9cqh, 20px); }
-  .eg-bar > i { height: 4px; }
+  .eg-bars { grid-column: 1 / -1; gap: var(--s-2); gap: clamp(var(--s-2), 1.2cqh, var(--s-3)); }
+  .eg-bar { font-size: var(--t-small); font-size: clamp(var(--t-label), 1.9cqh, var(--t-lead)); }
 
+  /* Eight columns; a row is as tall as the panel allows, up to a comfortable size. */
   .eg-coll {
-    border-top: 0; align-content: center; padding: 0 20px; padding: 0 calc(2.2cqw - 8px);
-    grid-auto-rows: 56px; grid-auto-rows: min(8cqh, 100% / var(--r8, 4));
+    border-top: 0; align-content: center;
+    grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: minmax(0, 56px); grid-auto-rows: minmax(0, 8cqh);
   }
   .eg-cell { font-size: 32px; font-size: clamp(26px, 4.6cqh, 52px); }
 
-  .eg-acts { border-top: 0; padding: 12px 28px 20px; padding: 1.6cqh 2.2cqw 2.8cqh; }
-  .eg-acts .btn { min-height: 48px; min-height: clamp(48px, 6cqh, 68px); font-size: clamp(16px, 2.2cqh, 23px); }
-  .eg-count { font-size: 20px; font-size: clamp(18px, 2.7cqh, 30px); }
+  .eg-acts { border-top: 0; padding: var(--s-3) var(--pad) var(--s-5); }
+  .eg-count { font-size: var(--t-lead); font-size: clamp(var(--t-lead), 2.7cqh, 32px); }
 }

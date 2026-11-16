@@ -17,6 +17,7 @@ const SET = EMOJIS.filter((r) => r.e !== NEUTRAL);
 const EASY = SET.filter((r) => r.level === 1).length;
 const SMALL = matchMedia('(max-width: 899px), (max-height: 520px)');   // same test as emoji.css
 const CALM = matchMedia('(prefers-reduced-motion: reduce)');
+const EASE = 'cubic-bezier(.2, .8, .2, 1)';                             // --ease in base.css
 
 // A camera view that keeps the face inside the part of the picture the box
 // shows. core.js has no option for this, so the layout step is extended here.
@@ -96,9 +97,6 @@ export function mount(root, { face }) {
   const bars = [...el.querySelectorAll('.eg-bar')].map((row) => ({
     name: row.children[0], num: row.children[1], fill: row.children[2].firstElementChild, key: '',
   }));
-  // The grid shares its height between its rows; CSS needs the row counts.
-  el.style.setProperty('--r8', Math.ceil(SET.length / 8));
-  el.style.setProperty('--r10', Math.ceil(SET.length / 10));
 
   const view = new FollowView(q('canvas'), face);
   const stab = new Stabilizer();
@@ -120,7 +118,7 @@ export function mount(root, { face }) {
 
   const text = (node, s) => { if (node.textContent !== s) node.textContent = s; };
   const pop = (node, scale) => {
-    if (!CALM.matches && node.animate) node.animate([{ transform: `scale(${scale})` }, { transform: 'none' }], { duration: 220, easing: 'ease-out' });
+    if (!CALM.matches && node.animate) node.animate([{ transform: `scale(${scale})` }, { transform: 'none' }], { duration: 200, easing: EASE });
   };
 
   function setShown(e) {
@@ -312,7 +310,6 @@ export function mount(root, { face }) {
       } else if (!round && shown !== aimed) aimMs = 0;
       const pct = Math.round(100 * aimMs / HOLD_MS);
       if (pct !== ringAt) { ringAt = pct; ring.style.strokeDasharray = `${pct} 100`; }
-      targetEl.classList.toggle('eg-hit', aimMs >= HOLD_MS);
     }
 
     if (round) {
@@ -333,7 +330,7 @@ export function mount(root, { face }) {
     if (a === 'play') start();
     else if (a === 'skip') skip();
     else if (a === 'reset') reset();
-    else if (e.target.closest('.eg-result')) result.hidden = true;
+    else if (!result.hidden && e.target.closest('.eg-cam')) result.hidden = true;
     else if (!round) setPick(b && b.dataset.e && b.dataset.e !== pick ? b.dataset.e : null);
   }, { signal: ac.signal });
 
@@ -343,6 +340,11 @@ export function mount(root, { face }) {
     if (e.pointerType === 'mouse' && !round) hover = cell ? cell.dataset.e : null;
   }, { signal: ac.signal });
   coll.addEventListener('pointerleave', () => { hover = null; }, { signal: ac.signal });
+  // The keyboard gets the same hint as the mouse.
+  coll.addEventListener('focusin', (e) => {
+    if (!round && e.target.matches('.eg-cell:focus-visible')) hover = e.target.dataset.e;
+  }, { signal: ac.signal });
+  coll.addEventListener('focusout', () => { hover = null; }, { signal: ac.signal });
 
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;

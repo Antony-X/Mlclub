@@ -16,7 +16,12 @@ const TEXT = {
   you: 'შენ',
 };
 
-const BROW = 'browInnerUp', JAW = 'jawOpen';   // the model's own names for the two signals
+// The signal is the mean of the model's three "brow up" outputs. One alone is
+// not enough: on real faces the inner one twitches when the head turns, and
+// some people's raise shows mostly in the outer two (or in one of them).
+const BROWS = ['browInnerUp', 'browOuterUpLeft', 'browOuterUpRight'];
+const BROW = 'brow*Up*', JAW = 'jawOpen';      // as shown beside the meters
+const browOf = (raw) => BROWS.reduce((sum, k) => sum + (raw[k] || 0), 0) / BROWS.length;
 const CALIB_MS = 1000;      // of resting face before the first raise
 const LOST_MS = 300;        // no face for this long stops a run
 const NEW_FACE_MS = 2500;   // no face for this long between runs: the next face is a new visitor
@@ -202,7 +207,7 @@ export function mount(root, { face }) {
       }
       return;
     }
-    const b = res.raw[BROW] || 0, j = res.raw[JAW] || 0;
+    const b = browOf(res.raw), j = res.raw[JAW] || 0;
     const wasLost = lostAt;
     lostAt = 0;
     if (state === 'play') runFace = true;
@@ -350,7 +355,7 @@ export function mount(root, { face }) {
     if (cam) lastCam = cam;
     const res = !fake ? cam
       : fake.found === false ? { found: false }
-      : { found: true, raw: { [BROW]: fake.brow || 0, [JAW]: fake.jaw || 0 } };
+      : { found: true, raw: { ...Object.fromEntries(BROWS.map((k) => [k, fake.brow || 0])), [JAW]: fake.jaw || 0 } };
     if (res) onResult(res, now);
 
     const gone = lostAt ? now - lostAt : 0;
@@ -358,6 +363,7 @@ export function mount(root, { face }) {
       if (gone > NEW_FACE_MS) recalibrate();
       else if (!jawOn && !gone && now - readyAt > HINT_MS) {
         jawOn = true;
+        brow.soften();                              // and a faint raise is enough from now on
         message();
       }
     } else if (state === 'play') {

@@ -10,6 +10,12 @@
 //
 // Everything is measured in time (ms), never in samples: the camera gives
 // anything from 15 to 60 results a second.
+//
+// The numbers come from real faces run through the model (the mean of its
+// three "brow up" outputs): at rest 0.00 to 0.05 with a jitter under 0.01; a
+// raise peaks anywhere from 0.23 (one person) to 0.93 (another), and at 0.10
+// to 0.17 for a one-sided or half-hearted one. So the step is 0.07 at the
+// least, clear of the jitter, and 0.14 at the most, well inside a big raise.
 
 const DEFAULTS = {
   range0: 0.30,       // assumed size of a raise before the first one is seen
@@ -56,6 +62,11 @@ export class RaiseDetector {
     this.level = this.valley = this.peak = value;
     this.raised = false;
     this._t = now;
+  }
+
+  // Nothing fired for a while: assume a small raise until one is seen.
+  soften() {
+    if (!this.raises) this.range = this.o.minRange;
   }
 
   get rise() { return clamp(this.o.riseFrac * this.range, this.o.minRise, this.o.maxRise); }
