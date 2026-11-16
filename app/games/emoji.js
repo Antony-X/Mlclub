@@ -1,6 +1,6 @@
 // სახე → ემოჯი. The camera picture with the mesh, the emoji the face matches,
 // a collection to fill, and a 45-second round of "make this face".
-import { FaceView, haptic, store } from '../core.js';
+import { FaceView, emojiEl, setEmoji, preloadEmoji, haptic, store } from '../core.js';
 import { EMOJIS, NEUTRAL, features, scoreAll, Stabilizer } from '../rules.js';
 
 const ROUND_MS = 45000;
@@ -63,18 +63,18 @@ const TEMPLATE = `
     <p class="eg-msg" hidden>სახე არ ჩანს</p>
   </div>
   <div class="eg-strip">
-    <span class="eg-now emoji">${NEUTRAL}</span>
+    <span class="eg-now"></span>
     <span class="eg-target">
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <circle class="eg-ring-bg" cx="50" cy="50" r="46"/>
         <circle class="eg-ring-fg" cx="50" cy="50" r="46" pathLength="100"/>
       </svg>
-      <span class="emoji"></span>
+      <span class="eg-target-e"></span>
     </span>
     <p class="eg-hint"></p>
     <div class="eg-bars">${'<div class="eg-bar"><span></span><b></b><i><i></i></i></div>'.repeat(BAR_ROWS)}</div>
   </div>
-  <div class="eg-coll">${SET.map((r) => `<button class="eg-cell" data-e="${r.e}" aria-label="${r.hint}"><span class="emoji">${r.e}</span></button>`).join('')}</div>
+  <div class="eg-coll"></div>
   <div class="eg-acts">
     <button class="btn" data-a="reset">თავიდან <kbd>R</kbd></button>
     <span class="eg-count num"></span>
@@ -87,13 +87,24 @@ export function mount(root, { face }) {
   root.innerHTML = TEMPLATE;
   const el = root.firstElementChild;
   const q = (s) => el.querySelector(s);
-  const nowEl = q('.eg-now'), targetEl = q('.eg-target'), targetEmoji = q('.eg-target .emoji');
+  const nowEl = q('.eg-now'), targetEl = q('.eg-target'), targetEmoji = q('.eg-target-e');
   const ring = q('.eg-ring-fg'), hintEl = q('.eg-hint'), countEl = q('.eg-count');
   const hud = q('.eg-hud'), clock = q('.eg-clock'), clockFill = q('.eg-clock i');
   const scoreEl = q('[data-r=score]'), timeEl = q('[data-r=time]');
   const result = q('.eg-result'), msg = q('.eg-msg');
   const playBtn = q('[data-a=play]'), skipBtn = q('[data-a=skip]');
-  const cells = new Map([...el.querySelectorAll('.eg-cell')].map((c) => [c.dataset.e, c]));
+  const coll = q('.eg-coll');
+  const cells = new Map(SET.map((r) => {
+    const c = document.createElement('button');
+    c.className = 'eg-cell';
+    c.dataset.e = r.e;
+    c.setAttribute('aria-label', r.hint);
+    c.append(emojiEl(r.e));
+    coll.append(c);
+    return [r.e, c];
+  }));
+  preloadEmoji(EMOJIS.map((r) => r.e));
+  setEmoji(nowEl, NEUTRAL);
   const bars = [...el.querySelectorAll('.eg-bar')].map((row) => ({
     name: row.children[0], num: row.children[1], fill: row.children[2].firstElementChild, key: '',
   }));
@@ -125,7 +136,7 @@ export function mount(root, { face }) {
     if (e === shown) return;
     shown = e;
     heldMs = 0;
-    nowEl.textContent = e;
+    setEmoji(nowEl, e);
   }
 
   function unlock(e) {
@@ -150,7 +161,7 @@ export function mount(root, { face }) {
     el.classList.toggle('eg-aim', !!a);
     if (!a) return;
     cells.get(a).classList.add('eg-sel');
-    targetEmoji.textContent = a;
+    setEmoji(targetEmoji, a);
     hintEl.textContent = EMOJIS.find((r) => r.e === a).hint;
   }
 
@@ -334,7 +345,6 @@ export function mount(root, { face }) {
     else if (!round) setPick(b && b.dataset.e && b.dataset.e !== pick ? b.dataset.e : null);
   }, { signal: ac.signal });
 
-  const coll = q('.eg-coll');
   coll.addEventListener('pointerover', (e) => {
     const cell = e.target.closest('.eg-cell');
     if (e.pointerType === 'mouse' && !round) hover = cell ? cell.dataset.e : null;

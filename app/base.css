@@ -45,6 +45,7 @@ body {
 }
 [hidden] { display: none !important; }
 .emoji { font-family: var(--emoji); }
+.emoji-img { display: inline-block; width: 1em; height: 1em; object-fit: contain; vertical-align: -0.125em; -webkit-user-drag: none; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* The camera feeds the model from here. It must stay rendered (not display:none)
@@ -62,8 +63,8 @@ body {
   border-bottom: 1px solid var(--line);
 }
 .top .logo { height: 24px; width: auto; aspect-ratio: 408 / 296; flex: none; }
-.top .title { margin: 0; font-weight: 600; font-size: 15px; line-height: 1.2; white-space: nowrap; }
-.top .privacy { margin-left: auto; color: var(--soft); font-size: var(--t-label); white-space: nowrap; }
+.top .title { margin: 0 auto 0 0; font-weight: 600; font-size: 15px; line-height: 1.2; white-space: nowrap; }   /* everything after it stands on the right */
+.top .privacy { color: var(--soft); font-size: var(--t-label); white-space: nowrap; }
 .top .back {
   display: none; flex: none; width: 44px; height: 44px; margin: 0 calc(-1 * var(--s-1)) 0 calc(-1 * var(--s-3));
   align-items: center; justify-content: center; color: var(--text); border-radius: var(--radius);
@@ -77,7 +78,23 @@ body:not([data-route="menu"]) .top .title { color: var(--gold); }
 body:not([data-route="menu"]) .top .logo { order: 9; }
 @media (max-width: 820px) {
   .top .privacy { display: none; }
-  body:not([data-route="menu"]) .top .logo { margin-left: auto; }
+}
+
+/* The record button: a ring at rest; a red square and the running time while recording. */
+.top .rec {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  min-width: 44px; height: 44px; padding: 0 var(--s-3); margin: 0 calc(-1 * var(--s-1));
+  font: 600 var(--t-small)/1 var(--font); color: var(--text);
+  background: none; border: 0; border-radius: var(--radius); cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  transition: background-color var(--m-out) var(--ease);
+}
+.top .rec i { width: 16px; height: 16px; border: 2px solid var(--soft); border-radius: 50%; }
+.top .rec:active { background: var(--panel); }
+body[data-rec] .top .rec i { border: 0; border-radius: 0; background: var(--salmon); }
+body[data-rec] .top .privacy { color: var(--salmon); }
+@media (hover: hover) and (pointer: fine) {
+  .top .rec:hover { background: var(--panel); transition-duration: var(--m-in); }
 }
 
 #view { flex: 1; min-height: 0; position: relative; }
@@ -144,7 +161,7 @@ kbd {
 .card > span:last-child { color: var(--soft); font-size: var(--t-body); }
 .card-art { display: flex; align-items: center; justify-content: center; gap: var(--s-4); height: 96px; margin-bottom: var(--s-3); }
 .card-art svg { height: 100%; width: auto; }
-.card-art .emoji { font-size: 64px; line-height: 1; }
+.card-emoji { display: flex; font-size: 64px; line-height: 1; }
 .card:active { border-color: var(--soft); }
 @media (hover: hover) and (pointer: fine) {
   .card:hover { transform: translateY(-2px); border-color: var(--soft); transition-duration: 180ms; }
@@ -158,11 +175,11 @@ kbd {
   .menu { grid-template-columns: minmax(0, 420px); gap: var(--s-3); padding: var(--s-4) var(--pad); }
   .card { padding: var(--s-5) var(--s-4); }
   .card-art { height: 80px; }
-  .card-art .emoji { font-size: 56px; }
+  .card-emoji { font-size: 56px; }
 }
 @media (max-width: 640px) and (max-height: 600px) {    /* a small phone: both cards and the note on one screen */
   .card-art { height: 56px; margin-bottom: var(--s-2); }
-  .card-art .emoji { font-size: 40px; }
+  .card-emoji { font-size: 40px; }
 }
 
 /* The menu arrives once when the page loads, then stands. */

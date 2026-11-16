@@ -13,6 +13,9 @@ mediapipe/wasm/vision_wasm_nosimd_internal.wasm
 mediapipe/face_landmarker.task  (Face Landmarker, float16, version 1)
   https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
 
+mediapipe/gesture_recognizer.task  (Gesture Recognizer with hand landmarks, float16, version 1)
+  https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task
+
 SHA-256
 e77f281f9619150d937023c355bae170e9120e3b9e43f1e23a2a7bee07197669  mediapipe/vision_bundle.mjs
 9440cf0cc0cea21800e31581ec32aeedcc5fbf9df4509796bbc7d3f99e52ab9c  mediapipe/wasm/vision_wasm_internal.js
@@ -20,6 +23,7 @@ f82a8e6c05e08a44cc9f9e7ec5f845935bcbb1b1500ebe8c2f4812fb4e2917dc  mediapipe/wasm
 abe9b6fbeaf86fcb53a5edce3926c82ccb0619e18fed4d9d9ce561ee7f55e054  mediapipe/wasm/vision_wasm_nosimd_internal.js
 38b61feab2fd7934e05cbe9f68baa308978a5e3b7f85c1913bb8ae89b8ef8b97  mediapipe/wasm/vision_wasm_nosimd_internal.wasm
 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff  mediapipe/face_landmarker.task
+97952348cf6a6a4915c2ea1496b4b37ebabc50cbbf80571435643c455f2b0482  mediapipe/gesture_recognizer.task
 
 dev/portrait.jpg (test image only, not used by the games)
   https://storage.googleapis.com/mediapipe-assets/portrait.jpg
@@ -30,3 +34,8 @@ fonts/FiraGO-400.woff2, FiraGO-600.woff2, FiraGO-700.woff2
 22497f77adafbe213fff46a73aa5658e476c797314f3440fcb9c5b95fc3e92fc  fonts/FiraGO-400.woff2
 1c426d7fe4ce954fe078ef30e2c09f15a7614d79f6a869c4ccf47d6ca19f554c  fonts/FiraGO-600.woff2
 c589233d97d72e4943e49cda84a645782a1252b246be23493d856013ce3a12af  fonts/FiraGO-700.woff2
+
+emoji/*.webp  (173 emoji pictures: faces, hands and a few symbols)
+  Noto Emoji, 3D set (Google), Apache License 2.0
+  https://github.com/googlefonts/noto-emoji at commit 99701e07d3d1fe1bdbcdb14964547f0fd592966f, folder 3D/png/512
+  resized to 256 px and saved as WebP (quality 86); named by code points joined with "-", without U+FE0F

@@ -2,7 +2,7 @@
 // The generator's promises are checked on many layers, and a bot with a
 // person's limits (see bot.mjs) flies many runs at every screen shape: narrow
 // screens see less far ahead, so they are the hard case.
-import { P, createWorld, step, flap, gapCentre, speed } from '../../app/games/brow-world.js';
+import { P, createWorld, step, flap, gapCentre } from '../../app/games/brow-world.js';
 import { createBot } from './bot.mjs';
 
 const ASPECTS = [0.45, 0.57, 0.8, 1.0, 1.57, 2.05, 2.4];   // tall phone .. phone on its side
@@ -29,8 +29,7 @@ const check = (ok, text) => {
 {
   const w = createWorld(rng(1));
   const seen = [];
-  let worstUp = 0, worstDown = 0, bad = 0;
-  const sizes = {};
+  let worst = 0, bad = 0;
   for (let n = 0; n < 200000 && seen.length < 20000; n++) {
     w.x += 0.01;                      // walk along; step() would need a player
     step(w); w.y = 0.5; w.vy = 0; w.dead = false;
@@ -39,17 +38,13 @@ const check = (ok, text) => {
       seen[l.i] = l;
       const prev = seen[l.i - 1];
       if (l.a < 1 || l.a + l.k > P.N - 1) bad++;
-      if (l.i <= 40) sizes[l.i <= 4 ? 'first 4' : l.i <= 16 ? '5-16' : '17-40'] = { ...(sizes[l.i <= 4 ? 'first 4' : l.i <= 16 ? '5-16' : '17-40'] || {}), [l.k]: ((sizes[l.i <= 4 ? 'first 4' : l.i <= 16 ? '5-16' : '17-40'] || {})[l.k] || 0) + 1 };
       if (!prev) continue;
-      const d = (gapCentre(l) - gapCentre(prev)) * P.N;
-      worstUp = Math.max(worstUp, -d);
-      worstDown = Math.max(worstDown, d);
+      worst = Math.max(worst, Math.abs(gapCentre(l) - gapCentre(prev)) * P.N);
     }
   }
   const count = seen.filter(Boolean).length;
   check(bad === 0, `${count} layers: a neuron above and below every gap`);
-  check(worstUp <= P.MAX_UP && worstDown <= P.MAX_DOWN,
-    `next gap at most ${worstUp} slots up and ${worstDown} down (limits ${P.MAX_UP}, ${P.MAX_DOWN})`);
+  check(worst <= P.REACH + 1e-9, `next gap at most ${worst.toFixed(1)} slots away (limit ${P.REACH})`);
 }
 
 // ---- the physics ----
@@ -61,29 +56,32 @@ const check = (ok, text) => {
   flap(w);
   let t = 0;
   while (!w.dead && t < 20) { step(w); t += P.STEP; }
-  check(w.dead && w.score === 0 && t < 2.5, `no more raises after the first: on the floor after ${t.toFixed(2)} s`);
+  check(w.dead && w.score === 0 && t < 2.5, `one hop and nothing more: on the floor after ${t.toFixed(2)} s`);
 }
 
 // ---- the bot ----
-function run(seed, aspect, bot) {
+// `stray` adds the blinks nobody decides on: one every 3 to 5 s, each a hop of its own.
+function run(seed, aspect, bot, stray = false) {
   const w = createWorld(rng(seed));
-  const due = [];                      // raises on their way
+  const chance = rng(seed + 5000);
+  const due = [];                      // hops on their way
+  let natural = 3 + 2 * chance();
   flap(w);
   while (!w.dead && w.score < LIMIT) {
     if (bot.wants(w, aspect)) due.push(w.t + bot.react);
     if (due.length && w.t >= due[0]) { due.shift(); flap(w); }
+    if (stray && w.t >= natural) { natural += 3 + 2 * chance(); flap(w); }
     step(w);
   }
   return w;
 }
 
 for (const aspect of ASPECTS) {
-  const scores = [], times = [];
+  const scores = [];
   for (let seed = 1; seed <= RUNS; seed++) {
     const react = 0.12;
     const w = run(seed, aspect, { wants: createBot({ react }), react });
     scores.push(w.score);
-    if (w.score >= GOAL) times.push(w.t);
   }
   scores.sort((a, b) => a - b);
   const reached = scores.filter((s) => s >= GOAL).length;
@@ -91,16 +89,21 @@ for (const aspect of ASPECTS) {
     `aspect ${aspect.toFixed(2)}: ${reached}/${RUNS} runs pass ${GOAL} layers ` +
     `(median ${scores[RUNS >> 1]}, worst ${scores[0]}, ${LIMIT}+ in ${scores.filter((s) => s >= LIMIT).length})`);
 }
-{
-  const w = createWorld(rng(3));
-  flap(w);
-  let t30 = 0;
-  // how long 30 layers take at the game's speeds
-  let x = 0, s = 0, t = 0;
-  const fake = { score: 0 };
-  while (s < 30) { t += P.STEP; x += speed(fake) * P.STEP; const n = Math.max(0, Math.floor((x - P.RUN_IN - P.HIT) / P.SPACING) + 1); if (x > P.RUN_IN + P.HIT) fake.score = s = n; }
-  t30 = t;
-  console.log(`     30 layers take ${t30.toFixed(0)} s`);
+
+// Natural blinks on top of the deliberate ones: the first layers (gaps of three
+// and two neurons) must stay fair; later, gaps of one neuron punish them.
+for (const aspect of [0.57, 1.57]) {
+  const EARLY = 12;
+  const scores = [];
+  for (let seed = 1; seed <= RUNS; seed++) {
+    const react = 0.12;
+    scores.push(run(seed, aspect, { wants: createBot({ react }), react }, true).score);
+  }
+  scores.sort((a, b) => a - b);
+  const early = scores.filter((s) => s >= EARLY).length;
+  check(early >= RUNS * 0.95,
+    `aspect ${aspect.toFixed(2)}, with a natural blink every 3 to 5 s: ${early}/${RUNS} runs pass the first ${EARLY} layers ` +
+    `(${scores.filter((s) => s >= GOAL).length} pass ${GOAL}, median ${scores[RUNS >> 1]})`);
 }
 console.log(failed ? `\n${failed} check(s) failed` : '\nall checks pass');
 process.exit(failed ? 1 : 0);

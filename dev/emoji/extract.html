@@ -6,6 +6,7 @@
 // Runs still photos through the same model and options the games use
 // (app/core.js), on the CPU delegate, and returns the numbers the rules read.
 import { FaceLandmarker, FilesetResolver } from '../../vendor/mediapipe/vision_bundle.mjs';
+import { geometry } from '../../app/rules.js';
 
 const VENDOR = new URL('../../vendor/mediapipe/', import.meta.url);
 const canvas = document.getElementById('c');
@@ -41,37 +42,57 @@ function summarise(r, w, h) {
   const roll = Math.atan2((b.y - a.y) * h, (b.x - a.x) * w) * 180 / Math.PI;
   const m = r.facialTransformationMatrixes && r.facialTransformationMatrixes[best];
   return {
-    raw, roll: Math.round(roll * 100) / 100, matrix: m ? Array.from(m.data, round) : null,
+    raw, geo: geometry(faces[best], w / h), roll: Math.round(roll * 100) / 100, matrix: m ? Array.from(m.data, round) : null,
     box: Object.fromEntries(Object.entries(box).map(([k, v]) => [k, round(v)])), faces: faces.length,
   };
 }
 
-// url: the photo. opts.maxSide: scale down first (a camera frame is 640 to 1280 wide).
-// opts.rotate: degrees, to test tilted heads. The tracker is emptied with a blank
-// frame first (unless opts.keep, for a sequence), then the photo is shown a few
-// times, as a video would.
-window.extract = async (url, opts = {}) => {
-  await ready;
-  const img = new Image();
-  img.src = url;
-  await img.decode();
-  const k = Math.min(1, (opts.maxSide || 1280) / Math.max(img.naturalWidth, img.naturalHeight));
-  const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+// One pass over a rectangle of the photo (source pixels), scaled so its long
+// side is at most maxSide (a camera frame is 640 to 1280 wide).
+function pass(img, [sx, sy, sw, sh], opts) {
+  const k = Math.min(2, (opts.maxSide || 1280) / Math.max(sw, sh));
+  const w = Math.round(sw * k), h = Math.round(sh * k);
   canvas.width = w;
   canvas.height = h;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, w, h);
-  if (!opts.keep) lm.detectForVideo(canvas, (stamp += 40));
+  if (!opts.keep) lm.detectForVideo(canvas, (stamp += 40));   // a blank frame empties the tracker
   if (opts.rotate) {
     ctx.translate(w / 2, h / 2);
     ctx.rotate(opts.rotate * Math.PI / 180);
     ctx.translate(-w / 2, -h / 2);
   }
-  ctx.drawImage(img, 0, 0, w, h);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   let out = null;
   for (let i = 0; i < (opts.repeat || 5); i++) out = summarise(lm.detectForVideo(canvas, (stamp += 40)), w, h);
   return out && { ...out, w, h };
+}
+
+// url: the photo. opts: maxSide, rotate (degrees, to test tilted heads), keep
+// (no blank frame first, for a sequence), repeat (frames shown, as a video would),
+// crop ([x0, y0, x1, y1] in 0..1), tiles (if the whole photo shows no face, look
+// in parts of it: the detector only finds faces that are large in the picture).
+window.extract = async (url, opts = {}) => {
+  await ready;
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const rect = (c) => [c[0] * W, c[1] * H, (c[2] - c[0]) * W, (c[3] - c[1]) * H];
+  if (opts.crop) return pass(img, rect(opts.crop), opts);
+  let out = pass(img, [0, 0, W, H], opts);
+  if (out || !opts.tiles) return out;
+  for (const size of [0.6, 0.35]) {
+    const n = Math.round(1 / size) + 1;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x0 = (1 - size) * i / (n - 1), y0 = (1 - size) * j / (n - 1);
+      const crop = [x0, y0, x0 + size, y0 + size].map(round);
+      out = pass(img, rect(crop), opts);
+      if (out) return { ...out, crop };
+    }
+  }
+  return null;
 };
 window.ready = ready.then(() => true);
 </script>

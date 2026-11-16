@@ -6,6 +6,35 @@ const L = (x, a, b) => 1 - H(x, a, b);            // falls from 1 at a to 0 at b
 const A = Math.min;
 const avg = (a, b) => (a + b) / 2;
 
+// Measurements taken straight from the 478 landmarks, for what the blendshapes
+// report poorly: how far each eye is open, whether the lips are parted, how high
+// each brow sits. Distances are in 3D (z has the scale of x), so a turned or
+// tilted head changes them little. aspect = picture width / height.
+const EYE_R = { w: [33, 133], lids: [[160, 144], [159, 145], [158, 153]], brow: 105 };
+const EYE_L = { w: [263, 362], lids: [[387, 373], [386, 374], [385, 380]], brow: 334 };
+const LIPS = [[82, 87], [13, 14], [312, 317]];
+
+export function geometry(pts, aspect = 1) {
+  const d = (i, j) => Math.hypot((pts[i].x - pts[j].x) * aspect, pts[i].y - pts[j].y, (pts[i].z - pts[j].z) * aspect);
+  const mean = (pairs) => pairs.reduce((s, [i, j]) => s + d(i, j), 0) / pairs.length;
+  const eyes = d(33, 263);                        // outer corner to outer corner
+  const eye = (e) => mean(e.lids) / d(e.w[0], e.w[1]);
+  const mid = (e) => ({
+    x: (pts[e.w[0]].x + pts[e.w[1]].x) / 2, y: (pts[e.w[0]].y + pts[e.w[1]].y) / 2, z: (pts[e.w[0]].z + pts[e.w[1]].z) / 2,
+  });
+  const brow = (e) => {
+    const m = mid(e), b = pts[e.brow];
+    return Math.hypot((b.x - m.x) * aspect, b.y - m.y, (b.z - m.z) * aspect) / eyes;
+  };
+  const r4 = (x) => Math.round(x * 1e4) / 1e4;
+  return {
+    eyeL: r4(eye(EYE_L)), eyeR: r4(eye(EYE_R)),   // lid gap / eye width: about 0.3 open, under 0.12 shut
+    lips: r4(mean(LIPS) / d(61, 291)),            // inner lip gap / mouth width: 0 = lips together
+    browL: r4(brow(EYE_L)), browR: r4(brow(EYE_R)),
+    mouth: r4(d(61, 291) / eyes),                 // mouth width against the eyes
+  };
+}
+
 // Compact features from one detection result ({ bs, roll }).
 export function features(res) {
   const bs = res.bs || res.raw || {};

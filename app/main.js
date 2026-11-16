@@ -5,13 +5,18 @@
 //
 // It is mounted only once the model is loaded and the camera is running, and
 // both games share the one camera, so a phone asks for permission once.
-import { FaceTracker } from './core.js';
+import { FaceTracker, setEmoji } from './core.js';
+import { Recorder } from './record.js';
 
 const CLUB = 'მანქანური სწავლების კლუბი';
 const GAMES = {
   emoji: { title: 'სახე → ემოჯი', load: () => import('./games/emoji.js') },
-  brow: { title: 'წარბებით ფრენა', load: () => import('./games/brow.js') },
+  brow: { title: 'თვალებით ფრენა', load: () => import('./games/brow.js') },
 };
+
+const PRIVACY = 'ვიდეო არ იწერება და არსად იგზავნება.';
+const RECORDING = 'იწერება. ფაილი რჩება ამ მოწყობილობაზე.';
+const REC_LABEL = { start: 'ვიდეოს ჩაწერა', stop: 'ჩაწერის შეჩერება' };
 
 const MESSAGES = {
   loading: 'იტვირთება…',
@@ -30,6 +35,30 @@ const face = new FaceTracker($('cam'));
 let unmount = null;
 let token = 0;          // cancels a navigation that was overtaken by a newer one
 let wake = null;
+
+// Recording: only from its button, always shown while it runs, saved on this device.
+const rec = new Recorder(face);
+const recBtn = $('rec'), recTime = $('rec-time'), privacy = $('privacy');
+let recTick = 0;
+
+function showRec() {
+  const on = rec.active;
+  document.body.toggleAttribute('data-rec', on);
+  recBtn.setAttribute('aria-pressed', String(on));
+  recBtn.setAttribute('aria-label', on ? REC_LABEL.stop : REC_LABEL.start);
+  privacy.textContent = on ? RECORDING : PRIVACY;
+  const s = rec.seconds;
+  recTime.textContent = on ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '';
+}
+rec.onchange = () => {
+  clearInterval(recTick);
+  if (rec.active) recTick = setInterval(showRec, 500);
+  showRec();
+};
+recBtn.addEventListener('click', () => {
+  recBtn.blur();                                  // so Space stays the game's key
+  if (rec.active) rec.stop(); else rec.start();
+});
 
 function route() {
   const id = location.hash.replace(/^#\/?/, '');
@@ -85,18 +114,19 @@ function showMenu() {
   view.innerHTML = `
     <nav class="menu${entered ? '' : ' enter'}">
       <a class="card" href="#/emoji">
-        <span class="card-art">${ART_FACE}<span class="emoji">😉</span></span>
+        <span class="card-art">${ART_FACE}<span class="card-emoji"></span></span>
         <b>სახე → ემოჯი</b>
         <span>დაიმანჭე და ქსელი ემოჯის შეგირჩევს.</span>
       </a>
       <a class="card" href="#/brow">
         <span class="card-art">${artNetwork()}</span>
-        <b>წარბებით ფრენა</b>
-        <span>აწიე წარბები და იფრინე.</span>
+        <b>თვალებით ფრენა</b>
+        <span>დაახამხამე და იფრინე.</span>
       </a>
       <p class="menu-note">ვიდეო არ იწერება და არსად იგზავნება.</p>
       <div class="meter menu-load${face.progress >= 1 ? ' done' : ''}"><i style="transform:scaleX(${face.progress.toFixed(3)})"></i></div>
     </nav>`;
+  setEmoji(view.querySelector('.card-emoji'), '😉');
   entered = true;
 }
 
@@ -107,6 +137,9 @@ async function go() {
     try { unmount(); } catch (e) { console.error(e); }
     unmount = null;
   }
+  rec.stop();                                     // a recording never runs on past its game
+  recBtn.hidden = true;
+  face.recOverlay = null;
   view.replaceChildren();
   gate.hidden = true;
   document.body.dataset.route = id || 'menu';
@@ -136,6 +169,7 @@ async function go() {
   if (my !== token) return;
   gate.hidden = true;
   unmount = mod.mount(view, { face }) || null;
+  recBtn.hidden = !Recorder.supported;
   keepAwake();
 }
 
@@ -154,7 +188,8 @@ function releaseWake() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || !route() || !unmount) return;
+  if (document.visibilityState !== 'visible') { rec.stop(); return; }   // save what there is before the camera goes
+  if (!route() || !unmount) return;
   keepAwake();
   // Phones pause or close the camera in the background: bring it back.
   face.startCamera().catch(() => go());
@@ -175,4 +210,4 @@ addEventListener('keydown', (e) => {
 face.load().catch(() => {});   // start the download while the visitor reads the menu
 go();
 
-window.__app = { face, go };   // for tests
+window.__app = { face, go, rec };   // for tests

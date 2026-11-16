@@ -1,4 +1,4 @@
-/* წარბებით ფრენა. Wide screens: camera and numbers in a column on the left,
+/* თვალებით ფრენა. Wide screens: camera and numbers in a column on the left,
    the network on the right. Upright phones: the same in a strip on top. */
 .bg-root {
   position: absolute; inset: 0;
@@ -18,8 +18,7 @@
 .bg-cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .bg-mid { flex: none; display: flex; flex-direction: column; gap: var(--s-4); }
 
-/* the model's numbers */
-.bg-sigs { display: grid; gap: var(--s-3); }
+/* the model's number */
 .bg-sig {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-1) var(--s-2);
   font: 400 clamp(var(--t-label), 0.95vw, var(--t-body))/1.2 var(--mono); color: var(--soft);
@@ -74,11 +73,11 @@
   }
   .bg-cam { flex: none; width: 72px; aspect-ratio: 3 / 4; }
   .bg-mid { flex: 1; min-width: 0; gap: var(--s-2); }
-  .bg-sigs { gap: var(--s-2); }
   .bg-now b { font-size: 2em; }
   .bg-top { display: none; }        /* no room: the best is on the result screen */
   .bg-reset { margin: 0; }
   .bg-reset span, .bg-reset kbd { display: none; }
+  .bg-msg { padding-left: 28%; }    /* clear of the column the player starts in */
 }
 
 /* a phone on its side: little height */

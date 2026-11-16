@@ -1,7 +1,8 @@
-// Shared by both games: loads the face model, runs the camera, and draws the
-// camera picture with the landmark mesh. Everything comes from vendor/, so the
-// page works with no internet once it has loaded.
-import { FaceLandmarker, FilesetResolver } from '../vendor/mediapipe/vision_bundle.mjs';
+// Shared by both games: loads the face model (and, when asked, the hand
+// model), runs the camera, and draws the camera picture with the landmark
+// mesh. Everything comes from vendor/, so the page works with no internet once
+// it has loaded.
+import { FaceLandmarker, GestureRecognizer, FilesetResolver } from '../vendor/mediapipe/vision_bundle.mjs';
 
 const VENDOR = new URL('../vendor/mediapipe/', import.meta.url);
 const BYTES = { simd: 9423986, nosimd: 9294247, model: 3758596 };
@@ -15,6 +16,7 @@ const NO_BASELINE = /^(mouthSmile|jawOpen|eyeBlink|mouthPucker|mouthFunnel|_)/;
 const CALIB_FRAMES = 30;      // about one second of face
 const BASE_CAP = 0.35;        // a baseline never eats more than this
 const NEW_FACE_MS = 2500;     // face gone this long = next face is a new person
+const HANDS_STALE_MS = 400;   // a hand result older than this is no longer reported
 
 // Delegate tuning: time the first one, try the other only if it is slow.
 const WARMUP = 3, SAMPLES = 20, BUDGET_MS = 450, FAST_ENOUGH_MS = 22, MUCH_BETTER = 0.85;
@@ -79,6 +81,11 @@ export class FaceTracker {
     this._blind = 0;            // detections without a face on an unproven GPU
     this._busy = false;
     this._lostAt = 0;
+    this.handsReady = false;    // the hand model is loaded (see enableHands)
+    this._hands = null;
+    this._handsList = [];
+    this._handsAt = 0;
+    this._handTurn = false;
     this.resetBaseline();
   }
 
@@ -134,6 +141,77 @@ export class FaceTracker {
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
     });
+  }
+
+  // ---------- hands (optional) ----------
+
+  // Loads the hand model in the background, about 8 MB. Until it is there
+  // every result simply has no hands. Safe to call again.
+  enableHands() {
+    if (!this._handsLoading) {
+      this._handsLoading = this._loadHands().catch((e) => { console.error(e); this._handsLoading = null; });
+    }
+    return this._handsLoading;
+  }
+
+  async _loadHands() {
+    await this.load();
+    this._handModel = await fetchBytes(new URL('gesture_recognizer.task', VENDOR), () => {});
+    await this._makeHands();
+    this.handsReady = true;
+  }
+
+  // The hand model runs where the face model ended up running.
+  async _makeHands(force) {
+    const make = (delegate) => GestureRecognizer.createFromOptions(this._fileset, {
+      baseOptions: { modelAssetBuffer: this._handModel, delegate },
+      runningMode: 'VIDEO',
+      numHands: 2,
+    });
+    const want = force || (this.delegate === 'GPU' ? 'GPU' : 'CPU');
+    const old = this._hands;
+    this._hands = null;
+    if (old) { try { old.close(); } catch (e) { /* already gone */ } }
+    try {
+      this._hands = await make(want);
+      this._handsDelegate = want;
+    } catch (e) {
+      if (want === 'CPU') throw e;
+      this._hands = await make('CPU');
+      this._handsDelegate = 'CPU';
+    }
+  }
+
+  // Every second camera frame is enough for hands, and keeps the face fast.
+  _detectHands(now) {
+    if (this._hands && (this._handTurn = !this._handTurn)) {
+      try {
+        const r = this._hands.recognizeForVideo(this.source, this._stamp(now));
+        const list = [];
+        const marks = r.landmarks || [];
+        for (let i = 0; i < marks.length; i++) {
+          const g = r.gestures && r.gestures[i] && r.gestures[i][0];
+          const h = r.handedness && r.handedness[i] && r.handedness[i][0];
+          list.push({
+            landmarks: marks[i],
+            // The model expects a mirrored picture; ours is the raw camera, so its answer is swapped.
+            handed: h ? (h.categoryName === 'Left' ? 'Right' : 'Left') : '',
+            gesture: g ? g.categoryName || 'None' : 'None',
+            score: g ? g.score : 0,
+          });
+        }
+        this._handsList = list;
+        this._handsAt = now;
+      } catch (e) {
+        console.error(e);
+        const dead = this._hands;
+        this._hands = null;
+        try { dead.close(); } catch (e2) { /* already gone */ }
+        if (this._handsDelegate === 'GPU') this._makeHands('CPU').catch(() => {});   // once more, on the CPU
+      }
+    }
+    if (this._handsList.length && now - this._handsAt > HANDS_STALE_MS) this._handsList = [];
+    return this._handsList;
   }
 
   // ---------- camera ----------
@@ -238,8 +316,10 @@ export class FaceTracker {
   }
 
   // Call once per animation frame. Returns null when there is nothing new,
-  // { found: false } when no face is visible, otherwise
-  // { found: true, landmarks, raw, bs, roll, matrix, box, calibrating }.
+  // { found: false, hands } when no face is visible, otherwise
+  // { found: true, landmarks, raw, bs, roll, yaw, pitch, matrix, box, calibrating, hands }.
+  // hands: [] or up to two { landmarks (21 points, same coordinates as the
+  // face's), handed 'Left' | 'Right', gesture, score }; empty until enableHands().
   detect(now) {
     if (!this._lm || !this.width) return null;
     if (this._still || !this._watching) {
@@ -267,9 +347,10 @@ export class FaceTracker {
     const faces = r.faceLandmarks || [];
     const found = faces.length > 0 && !!r.faceBlendshapes && r.faceBlendshapes.length > 0;
     this._tuneStep(found, took);
+    const hands = this._detectHands(now);
     if (!found) {
       if (!this._lostAt) this._lostAt = now;
-      return { found: false };
+      return { found: false, hands };
     }
     if (this._lostAt && now - this._lostAt > NEW_FACE_MS) this.resetBaseline();
     this._lostAt = 0;
@@ -308,12 +389,19 @@ export class FaceTracker {
       bs[k] = Math.max(0, (raw[k] - b) / (1 - b));
     }
 
-    // Head roll in degrees, from the outer eye corners (in picture pixels).
-    const a = landmarks[33], b = landmarks[263];
-    const roll = Math.atan2((b.y - a.y) * this.height, (b.x - a.x) * this.width) * 180 / Math.PI;
+    // Head angles in degrees, from the landmarks (z is depth on the scale of x).
+    // roll: tilt toward a shoulder. yaw: turned sideways, positive toward the
+    // picture's right edge (the raw picture, before mirroring). pitch: positive
+    // when the head nods down.
+    const DEG = 180 / Math.PI, W = this.width, H = this.height;
+    const a = landmarks[33], b = landmarks[263];          // outer eye corners
+    const top = landmarks[10], chin = landmarks[152];
+    const roll = Math.atan2((b.y - a.y) * H, (b.x - a.x) * W) * DEG;
+    const yaw = Math.atan2((b.z - a.z) * W, Math.hypot((b.x - a.x) * W, (b.y - a.y) * H)) * DEG;
+    const pitch = Math.atan2((chin.z - top.z) * W, Math.hypot((chin.x - top.x) * W, (chin.y - top.y) * H)) * DEG;
     const m = r.facialTransformationMatrixes && r.facialTransformationMatrixes[best];
 
-    return { found: true, landmarks, raw, bs, roll, matrix: m ? m.data : null, box, calibrating: !this.base };
+    return { found: true, landmarks, raw, bs, roll, yaw, pitch, matrix: m ? m.data : null, box, calibrating: !this.base, hands };
   }
 
   _stamp(now) {
@@ -366,6 +454,8 @@ export class FaceTracker {
       try { this._alt.lm.close(); } catch (e) { /* already gone */ }
       this._alt = null;
     }
+    // The hand model follows the face model to the delegate that won.
+    if (this._hands && this._handsDelegate === 'GPU' && this.delegate === 'CPU') this._makeHands('CPU').catch(() => {});
   }
 
   _swap() {
@@ -499,6 +589,56 @@ export class FaceView {
     }
     ctx.restore();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Emoji as pictures. Windows, Android and Linux each draw their own emoji and
+// old systems lack the newer ones, so the page brings its own set (Noto, in
+// vendor/emoji). Apple devices draw Apple's emoji themselves and keep them.
+
+const EMOJI_DIR = new URL('../vendor/emoji/', import.meta.url);
+const APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+const emojiFile = (ch) => [...ch].map((c) => c.codePointAt(0)).filter((c) => c !== 0xfe0f).map((c) => c.toString(16)).join('-');
+// A joined sequence (U+200D) may be newer than the system, so it is a picture everywhere.
+const asText = (ch) => APPLE && !ch.includes('\u200d');
+
+export const emojiUrl = (ch) => new URL(`${emojiFile(ch)}.webp`, EMOJI_DIR).href;
+
+function emojiText(ch) {
+  const s = document.createElement('span');
+  s.className = 'emoji';
+  s.textContent = ch;
+  return s;
+}
+
+// An element showing one emoji, 1em wide and high: size it with font-size.
+export function emojiEl(ch) {
+  if (asText(ch)) return emojiText(ch);
+  const img = new Image();
+  img.className = 'emoji-img';
+  img.alt = ch;
+  img.draggable = false;
+  img.onerror = () => img.replaceWith(emojiText(img.alt));   // no file for it: the system's glyph
+  img.src = emojiUrl(ch);
+  return img;
+}
+
+// Shows `ch` inside `host`, reusing the picture so a change never blinks.
+export function setEmoji(host, ch) {
+  if (host.dataset.emoji === ch) return;
+  host.dataset.emoji = ch;
+  const cur = host.firstElementChild;
+  if (cur && cur.tagName === 'IMG' && !asText(ch)) {
+    cur.alt = ch;
+    cur.src = emojiUrl(ch);
+  } else {
+    host.replaceChildren(emojiEl(ch));
+  }
+}
+
+// Fetches the pictures ahead of time, so the first show of each is instant.
+export function preloadEmoji(list) {
+  for (const ch of list) if (!asText(ch)) new Image().src = emojiUrl(ch);
 }
 
 // ---------------------------------------------------------------------------

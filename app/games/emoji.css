@@ -46,7 +46,7 @@
   display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s-3); align-items: center;
   padding: 0 var(--pad); border-top: 1px solid var(--line);
 }
-.eg-now { font-size: 56px; line-height: 1; }
+.eg-now { display: grid; font-size: 56px; line-height: 1; }
 .eg-lost .eg-now, .eg-calib .eg-now { opacity: .35; }
 
 .eg-bars { display: grid; gap: var(--s-2); min-width: 0; }
@@ -62,7 +62,7 @@
 .eg-target circle { fill: none; }
 .eg-ring-bg { stroke: var(--soft); stroke-width: 2; }
 .eg-ring-fg { stroke: var(--gold); stroke-width: 6; stroke-dasharray: 0 100; }
-.eg-target .emoji { font-size: 48px; line-height: 1; }
+.eg-target-e { display: grid; font-size: 48px; line-height: 1; }
 .eg-hint { display: none; margin: 0; font: 700 var(--t-lead)/1.2 var(--font); letter-spacing: var(--tight); }
 
 /* ---------- the collection ---------- */
@@ -79,8 +79,8 @@
   background: none; border: 0; border-radius: var(--radius); cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
-.eg-cell span { opacity: .3; filter: grayscale(1); }
-.eg-cell.eg-on span { opacity: 1; filter: none; }
+.eg-cell > * { opacity: .3; filter: grayscale(1); }
+.eg-cell.eg-on > * { opacity: 1; filter: none; }
 .eg-cell.eg-sel { outline: 1px solid var(--gold); outline-offset: -1px; }
 .eg-cell:focus-visible { outline-offset: -2px; }
 
@@ -106,7 +106,7 @@
 @media (max-width: 359px) {
   .eg-acts .btn { padding: 0 var(--s-4); }
   .eg-target { width: 64px; height: 64px; }
-  .eg-target .emoji { font-size: 36px; }
+  .eg-target-e { font-size: 36px; }
   .eg-hint { font-size: var(--t-body); }
 }
 
@@ -117,7 +117,7 @@
   .eg-strip { border-top: 0; }
   .eg-now { font-size: 44px; }
   .eg-target { width: 56px; height: 56px; }
-  .eg-target .emoji { font-size: 32px; }
+  .eg-target-e { font-size: 32px; }
   .eg-bar:nth-child(n+3) { display: none; }
   .eg-bars { gap: var(--s-1); }
   /* Ten columns; the rows share the height that is left. */
@@ -145,13 +145,13 @@
     column-gap: var(--s-5); row-gap: var(--s-3); row-gap: clamp(var(--s-2), 1.4cqh, var(--s-4));
     padding-top: var(--s-5); padding-top: clamp(var(--s-4), 2.8cqh, var(--s-6));
   }
-  .eg-now { font-size: 140px; font-size: clamp(110px, 20cqh, 250px); line-height: 1.15; }
+  .eg-now { font-size: 140px; font-size: clamp(110px, 20cqh, 250px); }
   /* The ring and the hint keep their place when empty, so nothing below moves. */
   .eg-target {
     display: grid; visibility: hidden;
     width: 160px; height: 160px; width: clamp(126px, 23cqh, 288px); height: clamp(126px, 23cqh, 288px);
   }
-  .eg-target .emoji { font-size: 90px; font-size: clamp(70px, 12.8cqh, 160px); }
+  .eg-target-e { font-size: 90px; font-size: clamp(70px, 12.8cqh, 160px); }
   .eg-ring-bg { stroke-width: 1.5; }
   .eg-ring-fg { stroke-width: 5; }
   .eg-hint {

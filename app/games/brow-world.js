@@ -15,8 +15,7 @@ export const P = {
   RUN_IN: 1.0,          // before the first one
   SPEED: [0.27, 0.36],  // per s, first layer .. layer RAMP
   RAMP: 40,
-  MAX_UP: 1.5,          // how far the next gap may be above / below the last one, in slots
-  MAX_DOWN: 2.5,
+  REACH: 1.5,           // how far the next gap may be from the last one, up or down, in slots
   STEP: 1 / 120,        // s, fixed physics step
   AHEAD: 4.5,           // layers exist this far ahead of the player
   BEHIND: 2.5,
@@ -53,8 +52,7 @@ function nextLayer(w) {
   // A neuron stays above and below every gap, and the gap is within reach of the last one.
   const options = [];
   for (let a = 1; a <= P.N - k - 1; a++) {
-    const d = a + k / 2 - from;
-    if (d >= -P.MAX_UP && d <= P.MAX_DOWN) options.push(a);
+    if (Math.abs(a + k / 2 - from) <= P.REACH) options.push(a);
   }
   const a = options.length
     ? options[Math.floor(w.rand() * options.length)]
