@@ -2,31 +2,40 @@
 <html lang="ka">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#111316">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>მანქანური სწავლების კლუბი</title>
-<link rel="stylesheet" href="app/style.css">
+<link rel="icon" href="app/icon.svg" type="image/svg+xml">
+<link rel="preload" href="vendor/fonts/FiraGO-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app/base.css">
+<link rel="stylesheet" href="app/games/emoji.css">
+<link rel="stylesheet" href="app/games/brow.css">
 </head>
-<body>
-<header>
-  <svg class="logo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.4">
-    <path d="M6 8 16 6M6 8l10 10M6 24l10-18M6 24l10-6M16 6l10 10M16 18l10-2M16 28l10-12M6 24l10 4"/>
-    <g fill="#111316"><circle cx="6" cy="8" r="3"/><circle cx="6" cy="24" r="3"/><circle cx="16" cy="6" r="3"/><circle cx="16" cy="18" r="3"/><circle cx="16" cy="28" r="3"/></g>
-    <circle cx="26" cy="16" r="3.4" fill="#e7c46b" stroke="#e7c46b"/>
-  </svg>
+<body data-route="menu">
+<header class="top">
+  <a class="back" href="#/" aria-label="მენიუ">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <svg class="logo" viewBox="14 54 408 296" fill="none" stroke="currentColor" stroke-width="15" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M52 312 L52 92 L146 222 L240 92 L240 312" /><path d="M312 92 L312 312 L384 312" /><circle cx="52" cy="312" r="25" fill="#111316" stroke-width="13"/><circle cx="52" cy="92" r="25" fill="#111316" stroke-width="13"/><circle cx="146" cy="222" r="25" fill="#e7c46b" stroke-width="13"/><circle cx="240" cy="92" r="25" fill="#111316" stroke-width="13"/><circle cx="240" cy="312" r="25" fill="#111316" stroke-width="13"/><circle cx="312" cy="92" r="25" fill="#111316" stroke-width="13"/><circle cx="312" cy="312" r="25" fill="#111316" stroke-width="13"/><circle cx="384" cy="312" r="25" fill="#111316" stroke-width="13"/></svg>
   <span class="club">მანქანური სწავლების კლუბი</span>
-  <span class="privacy">არაფერი იწერება და არსად იგზავნება.</span>
+  <span class="title" id="title"></span>
+  <span class="privacy">ვიდეო არ იწერება და არსად იგზავნება.</span>
 </header>
-<main class="menu">
-  <a class="card" href="emoji.html">
-    <div class="big emoji">😉</div>
-    <h2>სახე → ემოჯი</h2>
-    <p>გააკეთე სახე, მანქანა ემოჯის იპოვის.</p>
-  </a>
-  <a class="card" href="brow.html">
-    <div class="big emoji">🤨</div>
-    <h2>წარბებით ფრენა</h2>
-    <p>აწიე წარბები და იფრინე.</p>
-  </a>
-</main>
+
+<main id="view"></main>
+
+<div class="gate" id="gate" hidden>
+  <div class="gate-box">
+    <p class="gate-msg" id="gate-msg"></p>
+    <div class="meter" id="gate-meter"><i></i></div>
+    <button class="btn primary" id="gate-retry" hidden>თავიდან ცდა</button>
+    <p class="gate-sub">ვიდეო არ იწერება და არსად იგზავნება.</p>
+  </div>
+</div>
+
+<video id="cam" class="cam-src" playsinline muted autoplay></video>
+<script type="module" src="app/main.js"></script>
 </body>
 </html>

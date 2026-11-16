@@ -1,4 +1,6 @@
-Third-party files (all Apache-2.0, Google MediaPipe)
+Third-party files
+
+MediaPipe (Google), Apache-2.0
 
 mediapipe/vision_bundle.mjs
 mediapipe/wasm/vision_wasm_internal.js
@@ -21,3 +23,10 @@ abe9b6fbeaf86fcb53a5edce3926c82ccb0619e18fed4d9d9ce561ee7f55e054  mediapipe/wasm
 
 dev/portrait.jpg (test image only, not used by the games)
   https://storage.googleapis.com/mediapipe-assets/portrait.jpg
+
+fonts/FiraGO-400.woff2, FiraGO-600.woff2, FiraGO-700.woff2
+  FiraGO 1.001 (bBox Type / Carrois / HERE), SIL Open Font License 1.1 (fonts/OFL.txt)
+  from npm package @fontsource/firago 5.3.0, cut down to Latin and Georgian with pyftsubset
+22497f77adafbe213fff46a73aa5658e476c797314f3440fcb9c5b95fc3e92fc  fonts/FiraGO-400.woff2
+1c426d7fe4ce954fe078ef30e2c09f15a7614d79f6a869c4ccf47d6ca19f554c  fonts/FiraGO-600.woff2
+c589233d97d72e4943e49cda84a645782a1252b246be23493d856013ce3a12af  fonts/FiraGO-700.woff2
