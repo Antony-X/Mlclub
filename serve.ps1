@@ -29,7 +29,7 @@ while ($listener.IsListening) {
     $rel = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath).TrimStart('/')
     if ($rel -eq '') { $rel = 'index.html' }
     $file = [IO.Path]::GetFullPath((Join-Path $root $rel))
-    if ($file.StartsWith($root) -and (Test-Path $file -PathType Leaf)) {
+    if ($file.StartsWith($root) -and [IO.File]::Exists($file)) {
       $bytes = [IO.File]::ReadAllBytes($file)
       $ext = [IO.Path]::GetExtension($file).ToLower()
       if ($mime.ContainsKey($ext)) { $ctx.Response.ContentType = $mime[$ext] }
