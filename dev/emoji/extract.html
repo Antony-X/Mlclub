@@ -5,17 +5,18 @@
 <script type="module">
 // Runs still photos through the same model and options the games use
 // (app/core.js), on the CPU delegate, and returns the numbers the rules read.
-import { FaceLandmarker, FilesetResolver } from '../../vendor/mediapipe/vision_bundle.mjs';
+import { FaceLandmarker, GestureRecognizer, FilesetResolver } from '../../vendor/mediapipe/vision_bundle.mjs';
 import { geometry } from '../../app/rules.js';
+import { anchor } from '../../app/hands.js';
 
 const VENDOR = new URL('../../vendor/mediapipe/', import.meta.url);
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const round = (x) => Math.round(x * 1e4) / 1e4;
-let lm = null, stamp = 0;
+let lm = null, gr = null, fileset = null, stamp = 0;
 
 async function init() {
-  const fileset = await FilesetResolver.forVisionTasks(new URL('wasm', VENDOR).href);
+  fileset = await FilesetResolver.forVisionTasks(new URL('wasm', VENDOR).href);
   lm = await FaceLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: new URL('face_landmarker.task', VENDOR).href, delegate: 'CPU' },
     runningMode: 'VIDEO',
@@ -25,6 +26,25 @@ async function init() {
   });
 }
 const ready = init();
+
+// The hand model, as core.js sets it up; made on first use.
+async function hands() {
+  gr = gr || await GestureRecognizer.createFromOptions(fileset, {
+    baseOptions: { modelAssetPath: new URL('gesture_recognizer.task', VENDOR).href, delegate: 'CPU' },
+    runningMode: 'VIDEO',
+    numHands: 2,
+  });
+  let r = null;
+  for (let i = 0; i < 4; i++) r = gr.recognizeForVideo(canvas, (stamp += 40));
+  return (r.landmarks || []).map((marks, i) => {
+    const g = r.gestures && r.gestures[i] && r.gestures[i][0], h = r.handedness && r.handedness[i] && r.handedness[i][0];
+    return {
+      landmarks: marks.map((p) => ({ x: round(p.x), y: round(p.y), z: round(p.z) })),
+      handed: h ? (h.categoryName === 'Left' ? 'Right' : 'Left') : '',     // swapped, as in core.js
+      gesture: g ? g.categoryName || 'None' : 'None', score: g ? round(g.score) : 0,
+    };
+  });
+}
 
 function summarise(r, w, h) {
   const faces = r.faceLandmarks || [];
@@ -42,14 +62,14 @@ function summarise(r, w, h) {
   const roll = Math.atan2((b.y - a.y) * h, (b.x - a.x) * w) * 180 / Math.PI;
   const m = r.facialTransformationMatrixes && r.facialTransformationMatrixes[best];
   return {
-    raw, geo: geometry(faces[best], w / h), roll: Math.round(roll * 100) / 100, matrix: m ? Array.from(m.data, round) : null,
+    raw, geo: geometry(faces[best], w / h), anchor: anchor(faces[best], w / h), roll: Math.round(roll * 100) / 100, matrix: m ? Array.from(m.data, round) : null,
     box: Object.fromEntries(Object.entries(box).map(([k, v]) => [k, round(v)])), faces: faces.length,
   };
 }
 
 // One pass over a rectangle of the photo (source pixels), scaled so its long
 // side is at most maxSide (a camera frame is 640 to 1280 wide).
-function pass(img, [sx, sy, sw, sh], opts) {
+async function pass(img, [sx, sy, sw, sh], opts) {
   const k = Math.min(2, (opts.maxSide || 1280) / Math.max(sw, sh));
   const w = Math.round(sw * k), h = Math.round(sh * k);
   canvas.width = w;
@@ -66,13 +86,16 @@ function pass(img, [sx, sy, sw, sh], opts) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   let out = null;
   for (let i = 0; i < (opts.repeat || 5); i++) out = summarise(lm.detectForVideo(canvas, (stamp += 40)), w, h);
-  return out && { ...out, w, h };
+  if (!opts.hands) return out && { ...out, w, h };
+  const list = await hands();
+  return out || list.length ? { ...(out || { found: false }), hands: list, w, h } : null;
 }
 
 // url: the photo. opts: maxSide, rotate (degrees, to test tilted heads), keep
 // (no blank frame first, for a sequence), repeat (frames shown, as a video would),
 // crop ([x0, y0, x1, y1] in 0..1), tiles (if the whole photo shows no face, look
-// in parts of it: the detector only finds faces that are large in the picture).
+// in parts of it: the detector only finds faces that are large in the picture),
+// hands (also run the hand model and return its hands, with or without a face).
 window.extract = async (url, opts = {}) => {
   await ready;
   const img = new Image();
@@ -81,14 +104,14 @@ window.extract = async (url, opts = {}) => {
   const W = img.naturalWidth, H = img.naturalHeight;
   const rect = (c) => [c[0] * W, c[1] * H, (c[2] - c[0]) * W, (c[3] - c[1]) * H];
   if (opts.crop) return pass(img, rect(opts.crop), opts);
-  let out = pass(img, [0, 0, W, H], opts);
+  let out = await pass(img, [0, 0, W, H], opts);
   if (out || !opts.tiles) return out;
   for (const size of [0.6, 0.35]) {
     const n = Math.round(1 / size) + 1;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const x0 = (1 - size) * i / (n - 1), y0 = (1 - size) * j / (n - 1);
       const crop = [x0, y0, x0 + size, y0 + size].map(round);
-      out = pass(img, rect(crop), opts);
+      out = await pass(img, rect(crop), opts);
       if (out) return { ...out, crop };
     }
   }
