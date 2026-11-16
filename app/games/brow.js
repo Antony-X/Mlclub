@@ -32,7 +32,9 @@ const LOST_MS = 300;        // no face for this long stops a run
 const NEW_FACE_MS = 2500;   // no face for this long between runs: the next face is a new visitor
 const ABANDON_MS = 5000;    // ... and in the middle of a run
 const HINT_MS = 5000;       // nothing hopped on the start screen: say the mouth works too
-const LOCK_MS = 1500;       // the result stays up this long before a blink can start again
+const LOCK_MS = 1500;       // the result stays up this long before a blink can start again,
+const RETRY_MS = 800;       // or this long when the run was over at once: straight back in
+const SHORT_RUN = 3;        // layers
 const QUIET_MS = 350;       // after a hop nothing hops: one blink, however it is made, is one hop
 const REOPEN_MS = 250;      // brows and mouth also wait this long after the eyes have opened again
 const LIT_MS = 250;         // a blink is short: keep it visible this long
@@ -123,6 +125,7 @@ export function mount(root, { face }) {
 
   const aspect = () => (size.h ? size.w / size.h : 1);
   const measured = () => blink.det.ready;
+  const lockout = () => (result && result.score >= SHORT_RUN ? LOCK_MS : RETRY_MS);
 
   // ---------- states ----------
 
@@ -207,7 +210,7 @@ export function mount(root, { face }) {
 
   // A blink, a raise of the eyebrows, an open mouth, or a key.
   function hop(now, viaFace) {
-    if (state === 'over' && now - overAt < LOCK_MS) return;
+    if (state === 'over' && now - overAt < lockout()) return;
     if (state === 'calib' && viaFace) return;
     if (state !== 'play' && state !== 'frozen') start(viaFace);
     else if (state === 'frozen') {
@@ -410,7 +413,7 @@ export function mount(root, { face }) {
       if (gone > ABANDON_MS) recalibrate();
     } else if (state === 'over') {
       if (gone > NEW_FACE_MS) recalibrate();
-      else if (!asked && now - overAt >= LOCK_MS) {
+      else if (!asked && now - overAt >= lockout()) {
         asked = true;
         message();
       }

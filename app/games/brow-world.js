@@ -1,22 +1,25 @@
 // The game world, with no drawing and no browser: physics, the layers of
 // neurons, collisions. Everything is in units of the screen height (y: 0 top,
 // 1 floor), so the game is the same on a phone and on a laptop; only how far
-// ahead you can see changes with the screen's width.
+// ahead you can see changes with the screen's width (brow.css keeps the play
+// area at least MIN_ASPECT heights wide, which the bot in dev/brow can fly).
+
+export const MIN_ASPECT = 0.56;
 
 export const P = {
   N: 7,                 // neuron slots in a layer, evenly spaced
   NODE_R: 0.030,        // drawn radius of a neuron, and of the player
   HIT: 0.052,           // centres closer than this collide (drawn circles touch at 0.060)
   FLOOR: 0.024,         // the player dies this close to the floor
-  GRAVITY: 1.25,        // per s²
-  FLAP: 0.50,           // upward speed after a raise: one hop is 0.10 high and 0.8 s long
-  MAX_FALL: 0.85,
-  SPACING: 0.62,        // between layers
-  RUN_IN: 1.0,          // before the first one
-  SPEED: [0.27, 0.36],  // per s, first layer .. layer RAMP
-  RAMP: 40,
-  TWO: [4, 12],         // gaps of two neurons come in between these layers,
-  ONE: [16, 40, 0.5],   // gaps of one between these, up to this share
+  GRAVITY: 2.0,         // per s²
+  FLAP: 0.63,           // upward speed after a blink: one hop is 0.10 high and 0.63 s long
+  MAX_FALL: 1.1,
+  SPACING: 0.68,        // between layers
+  RUN_IN: 1.15,         // before the first one
+  SPEED: [0.38, 0.50],  // per s, first layer .. layer RAMP
+  RAMP: 50,
+  TWO: [5, 17],         // gaps of two neurons come in between these layers,
+  ONE: [30, 70, 0.35],  // gaps of one between these, up to this share
   REACH: 1.5,           // how far the next gap may be from the last one, up or down, in slots
   STEP: 1 / 120,        // s, fixed physics step
   AHEAD: 4.5,           // layers exist this far ahead of the player

@@ -66,7 +66,9 @@
 .bg-msg .bg-or { font-size: max(var(--t-body), .6em); font-weight: 600; color: var(--soft); }
 
 @media (max-aspect-ratio: 1/1) {
-  .bg-root { grid-template-columns: none; grid-template-rows: auto minmax(0, 1fr); }
+  /* The play area is never narrower than 0.56 of its height (MIN_ASPECT in
+     brow-world.js): on a very tall phone the strip takes what is left over. */
+  .bg-root { grid-template-columns: none; grid-template-rows: minmax(min-content, 1fr) minmax(0, calc(100vw / 0.56)); }
   .bg-hud {
     flex-direction: row; align-items: flex-start; gap: var(--s-3);
     border-right: 0; border-bottom: 1px solid var(--line);

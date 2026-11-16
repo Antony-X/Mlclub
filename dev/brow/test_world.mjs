@@ -2,10 +2,10 @@
 // The generator's promises are checked on many layers, and a bot with a
 // person's limits (see bot.mjs) flies many runs at every screen shape: narrow
 // screens see less far ahead, so they are the hard case.
-import { P, createWorld, step, flap, gapCentre } from '../../app/games/brow-world.js';
+import { P, MIN_ASPECT, createWorld, step, flap, gapCentre } from '../../app/games/brow-world.js';
 import { createBot } from './bot.mjs';
 
-const ASPECTS = [0.45, 0.57, 0.8, 1.0, 1.57, 2.05, 2.4];   // tall phone .. phone on its side
+const ASPECTS = [MIN_ASPECT, 0.6, 0.8, 1.0, 1.57, 2.05, 2.4];   // the narrowest play area .. a phone on its side
 const RUNS = 300, GOAL = 30, LIMIT = 80;
 
 function rng(seed) {
@@ -92,7 +92,7 @@ for (const aspect of ASPECTS) {
 
 // Natural blinks on top of the deliberate ones: the first layers (gaps of three
 // and two neurons) must stay fair; later, gaps of one neuron punish them.
-for (const aspect of [0.57, 1.57]) {
+for (const aspect of [MIN_ASPECT, 1.57]) {
   const EARLY = 12;
   const scores = [];
   for (let seed = 1; seed <= RUNS; seed++) {
