@@ -115,6 +115,7 @@ export function mount(root, { face }) {
 
   let raf = 0, prev = 0;
   let last = null;            // the latest detection result
+  let feat = null;            // and what the rules read from it
   let fake = null;            // tests: a function standing in for face.detect
   let shown = null;           // the emoji on screen
   let lostMs = 0, lost = false;
@@ -266,9 +267,9 @@ export function mount(root, { face }) {
     if (res && res.found) {
       res.aspect = face.width / face.height;             // the rules measure the landmarks themselves
       res.h = face.height;
-      const f = features(res);
+      feat = features(res);
       // Turned far away or very small: the last emoji stays rather than a guess.
-      if (!f.away) setShown(stab.update(scoreAll(f), now, aimed));
+      if (!feat.away) setShown(stab.update(scoreAll(feat), now, aimed));
       showBars(res.raw, now);
     }
 
@@ -364,7 +365,7 @@ export function mount(root, { face }) {
   const hook = {                                   // for tests
     get state() {
       return {
-        shown, lost, aimed, aim: aimMs / HOLD_MS, total: SET.length,
+        shown, lost, aimed, aim: aimMs / HOLD_MS, total: SET.length, features: feat,
         round: round && { left: round.left, score: round.score, target: round.target },
         result: result.hidden ? null : { score: +q('[data-r=final]').textContent, best: +q('[data-r=best]').textContent },
       };
