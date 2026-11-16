@@ -1,11 +1,11 @@
 # ML Club stand games
 
 Two webcam games for the club fair, on one page. They run in the browser on a laptop or a phone.
-The face model and the library are inside `vendor/`, so after the first load nothing comes from the internet.
-The video never leaves the device: nothing is recorded or sent anywhere.
+The models and the library are inside `vendor/`, so after the first load nothing comes from the internet.
+The video never leaves the device. It is only recorded when someone presses the record button, and that file stays on the device too.
 
 - **სახე → ემოჯი**: the camera shows the emoji that matches your face, live. Collect them all, or play a 45-second round.
-- **წარბებით ფრენა**: you are the missing neuron. Each eyebrow raise is one jump; fly through the gap in every layer.
+- **თვალებით ფრენა**: you are the missing neuron. Each blink is one jump (raised eyebrows or an open mouth work too); fly through the gap in every layer.
 
 ## On a phone (or any device): GitHub Pages
 
@@ -16,7 +16,7 @@ A phone only gives the camera to an `https` page, so the page has to be hosted.
 3. After a minute the page is at `https://<user>.github.io/<repo>/`. Open it in Safari or Chrome and allow the camera.
 
 Open it in the real browser: apps that show links in their own window (Instagram, Messenger) often block the camera.
-The first load downloads about 13 MB.
+The first load downloads about 13 MB; the emoji game adds 8 MB for the hand model.
 
 ## On the stand laptop (Windows, no internet needed)
 
@@ -30,7 +30,7 @@ Opening `index.html` by double-click does not work: the browser needs `localhost
 
 ## Keys (laptop)
 
-| Key | Emoji game | Eyebrow game |
+| Key | Emoji game | Flying game |
 | --- | --- | --- |
 | `Space` | start a round | jump (for demos) |
 | `R` | reset for the next visitor | recalibrate for the next visitor |
@@ -39,12 +39,25 @@ Opening `index.html` by double-click does not work: the browser needs `localhost
 
 On a phone everything is done by tapping.
 
+## Recording
+
+Inside a game the top bar has a record button (a ring). Press it to start; it turns into a red square
+with the running time. Press again to stop: the browser saves `mlclub-<date>-<time>.mp4` (or `.webm`
+where the browser cannot write MP4) to its downloads folder. The video is the mirrored camera picture,
+without sound. Leaving the game also stops and saves. One recording is at most 10 minutes long.
+On an iPhone the file goes to the Files app (Downloads), not to Photos.
+
+Tell people at the stand before you record them.
+
 ## How it works
 
 MediaPipe Face Landmarker finds 478 points on the face and gives 52 "blendshape" numbers
-(how much the mouth smiles, the jaw opens, each brow lifts, ...). `app/rules.js` turns those
-numbers into an emoji; the eyebrow game reads only the brow numbers. The bars and meters on
-screen are the model's real outputs.
+(how much the mouth smiles, the jaw opens, each eye closes, ...). `app/rules.js` turns those
+numbers into an emoji; the flying game reads the blink, brow and jaw numbers. The bars and
+meters on screen are the model's real outputs.
+
+The emoji are pictures (Google's Noto Emoji), so every laptop and phone shows the same ones;
+iPhones, iPads and Macs use their own.
 
 ## If something goes wrong
 
