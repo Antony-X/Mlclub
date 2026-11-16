@@ -1,9 +1,9 @@
 // A player for tests that can only do what a person can: it knows a layer
-// once it is on screen, reacts late, and cannot blink on purpose more than
-// about three times a second. Used by test_world.mjs and by the browser tests.
+// once it is on screen, reacts late, and cannot hop more often than the game
+// lets a face hop (QUIET_MS in brow.js). Used by test_world.mjs and by the browser tests.
 import { P, gapCentre, playerX } from '../../app/games/brow-world.js';
 
-export function createBot({ react = 0.12, every = 0.32 } = {}) {
+export function createBot({ react = 0.12, every = 0.4 } = {}) {
   let last = -Infinity, hold = 0.5;
   // True when the bot decides to blink now; the hop itself should happen
   // `react` seconds later.

@@ -26,6 +26,22 @@ const every = (first, step, n) => Array.from({ length: n }, (_, i) => first + i 
 // A blink whose lid is more than half shut for `width` ms: shut in 50 ms, open again in 90.
 const blinks = (t, starts, width) => train(t, starts, 50, width - 70, 90);
 
+// A signal drawn point to point: [[ms, value], ...], straight lines between.
+const path = (t, points) => {
+  if (t <= points[0][0]) return points[0][1];
+  for (let i = 1; i < points.length; i++) {
+    const [t0, v0] = points[i - 1], [t1, v1] = points[i];
+    if (t <= t1) return v0 + (v1 - v0) * (t - t0) / (t1 - t0);
+  }
+  return points[points.length - 1][1];
+};
+// the same shape repeated at each start
+const each = (t, starts, shape) => {
+  let at = starts[0];
+  for (const s of starts) if (t >= s) at = s;
+  return shape(t - at);
+};
+
 // natural blinks, 3 to 5 s apart, 100 to 160 ms each
 const natural = (() => {
   const r = rng(99), list = [];
@@ -50,6 +66,21 @@ const scenarios = [
   ['the gaze drops: +0.10 in 0.2 s, and back', BLINK, (t) => 0.18 + 0.10 * pulse(t, 2000, 200, 1500, 200), 6000, 0],
   ['blinks while smiling and looking down', BLINK, (t) =>
     0.18 + 0.15 * pulse(t, 1500, 600, 5000, 600) + 0.10 * pulse(t, 3000, 200, 1500, 200) + 0.45 * blinks(t, every(2500, 900, 5), 140), 9000, 5],
+  // deliberate blinks are slow and hard, and the signal is not clean while the eyes are shut
+  ['a squeezed blink of 300 ms that wobbles while shut', BLINK, (t) =>
+    path(t, [[2000, 0.18], [2070, 0.85], [2130, 0.72], [2190, 0.88], [2250, 0.74], [2300, 0.86], [2370, 0.80], [2500, 0.18]]), 5000, 1],
+  ['a squeezed blink of 500 ms that flickers while shut', BLINK, (t) =>
+    path(t, [[2000, 0.18], [2080, 0.85], [2140, 0.55], [2200, 0.88], [2260, 0.52], [2320, 0.86], [2380, 0.56], [2440, 0.84], [2500, 0.80], [2640, 0.18]]), 5000, 1],
+  ['a blink that shuts in two steps', BLINK, (t) =>
+    path(t, [[2000, 0.18], [2060, 0.55], [2120, 0.44], [2200, 0.90], [2400, 0.88], [2520, 0.18]]), 5000, 1],
+  ['a blink that bounces while opening', BLINK, (t) =>
+    path(t, [[2000, 0.18], [2070, 0.86], [2300, 0.84], [2370, 0.42], [2430, 0.60], [2520, 0.18]]), 5000, 1],
+  ['a hard blink, then a flutter of the lids', BLINK, (t) =>
+    path(t, [[2000, 0.18], [2070, 0.88], [2350, 0.86], [2460, 0.14], [2560, 0.16], [2610, 0.34], [2680, 0.16]]), 5000, 1],
+  ['five squeezed blinks, 0.9 s apart, each flickering', BLINK, (t) => each(t, every(2000, 900, 5), (u) =>
+    path(u, [[0, 0.18], [80, 0.85], [140, 0.58], [200, 0.88], [260, 0.60], [330, 0.84], [450, 0.18]])), 8000, 5],
+  ['eyes kept shut for 4 s, flickering: nothing repeats', BLINK, (t) =>
+    0.18 + 0.62 * pulse(t, 2000, 80, 4000, 150) + 0.03 * pulse(t, 2000, 80, 4000, 150) * Math.sin(t / 25), 9000, 1],
   // ---- eyebrows ----
   ['resting brows, 30 s', BROW, () => 0.04, 30000, 0],
   ['one quick raise', BROW, (t) => 0.04 + 0.5 * pulse(t, 2000, 120, 300, 180), 5000, 1, { onsets: [2000], limit: 90 }],

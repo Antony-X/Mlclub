@@ -25,6 +25,8 @@ const DEFAULTS = {
   smooth: 40,         // ms, low-pass on the raw signal
   window: 1500,       // ms, the climb has to happen within this; slower is drift
   hold: 500,          // ms at a steady high level: that level is the new rest
+  back: 0,            // if set: re-arm only when this fraction of the movement is undone
+  settle: 0,          // ms of rest after re-arming before the next event can fire
   refractory: 150,    // ms, shortest time between two events
   gap: 500,           // ms without samples: start again from the current value
   learn: [0.3, 0.1],  // how fast the range follows a bigger movement, and a smaller one
@@ -49,10 +51,13 @@ export const BROW = {
 // 0.3 or more within one or two camera frames and is over in 130 to 170 ms.
 // So: no smoothing, and only a climb within 0.3 s counts, which a moving gaze
 // or a growing smile is too slow for.
+// One blink is one event, however hard or long it is squeezed: while the
+// eyes are shut the signal flickers and bounces, so the next blink only counts
+// once the eyes have opened again (most of the way back to where it started).
+// A second of a steady high level (the gaze dropped and stayed) is a new rest.
 export const BLINK = {
-  range0: 0.45, riseFrac: 0.45, fallFrac: 0.35,
-  minRise: 0.12, maxRise: 0.25, minFall: 0.10, maxFall: 0.25,
-  smooth: 0, window: 300, hold: 400, minRange: 0.20, maxRange: 0.90,
+  range0: 0.45, riseFrac: 0.45, minRise: 0.12, maxRise: 0.25, minFall: 0.10,
+  smooth: 0, window: 300, hold: 1000, back: 0.65, settle: 100, minRange: 0.20, maxRange: 0.90,
 };
 // The mouth: talking moves the jaw by 0.1 to 0.3, so it takes a clear opening.
 export const JAW = {
@@ -80,7 +85,7 @@ export class RaiseDetector {
     this._low = [];        // [time, level] candidates for the valley, rising in both
     this._from = 0;        // valley the current movement started from
     this._t = 0;
-    this._firedAt = this._peakAt = -Infinity;
+    this._firedAt = this._peakAt = this._armedAt = -Infinity;
   }
 
   // Start (or restart after a break) from a resting or current value.
@@ -120,7 +125,7 @@ export class RaiseDetector {
       const low = this._low;
       while (low.length > 1 && low[0][0] < now - this.o.window) low.shift();
       this.valley = Math.min(low[0][1], v);
-      if (v - this.valley >= this.rise && now - this._firedAt >= this.o.refractory) {
+      if (v - this.valley >= this.rise && now - this._firedAt >= this.o.refractory && now - this._armedAt >= this.o.settle) {
         this.raised = true;
         this._from = this.valley;
         this.peak = v;
@@ -136,7 +141,8 @@ export class RaiseDetector {
       }
       // A small movement is over once most of it is undone: it must not hide a big one that follows.
       const size = this.peak - this._from;
-      const undone = this.peak - v >= Math.max(this.o.minFall, Math.min(this.fall, 0.6 * size));
+      const drop = this.o.back ? this.o.back * size : Math.min(this.fall, 0.6 * size);
+      const undone = this.peak - v >= Math.max(this.o.minFall, drop);
       if (undone || now - this._peakAt >= this.o.hold) {
         const rate = this.o.learn[size > this.range ? 0 : 1];
         const next = this.raises ? this.range + (size - this.range) * rate : size;
@@ -145,6 +151,7 @@ export class RaiseDetector {
         this.raised = false;
         this.valley = v;
         this._low = [[now, v]];
+        this._armedAt = now;
       }
     }
     return false;

@@ -33,7 +33,8 @@ const NEW_FACE_MS = 2500;   // no face for this long between runs: the next face
 const ABANDON_MS = 5000;    // ... and in the middle of a run
 const HINT_MS = 5000;       // nothing hopped on the start screen: say the mouth works too
 const LOCK_MS = 1500;       // the result stays up this long before a blink can start again
-const ONE_MS = 250;         // a second movement this soon after another kind is the same gesture
+const QUIET_MS = 350;       // after a hop nothing hops: one blink, however it is made, is one hop
+const REOPEN_MS = 250;      // brows and mouth also wait this long after the eyes have opened again
 const LIT_MS = 250;         // a blink is short: keep it visible this long
 const FLASH_MS = 240;
 const MAX_FRAME = 0.1;      // s, a longer hitch is not played back
@@ -110,7 +111,8 @@ export function mount(root, { face }) {
   let lostAt = 0;             // when the face went away (0: it is here)
   let runFace = false;        // a face has been seen in this run (keyboard runs need none)
   let hops = 0, from = 'ready';   // of this run: how many hops, and where it began
-  let lastHop = { by: '', at: -Infinity };
+  let quietUntil = 0;         // no face movement hops before this
+  let shutUntil = 0;          // ... and no brows or mouth before this
   let readyAt = 0, overAt = 0, asked = false;
   let flash = null;           // { layer, at }
   let size = { w: 0, h: 0 }, dpr = 1;
@@ -248,16 +250,17 @@ export function mount(root, { face }) {
     // Back from a break (or a run begun on the keyboard): no comparing across it.
     if (!measured() || away > LOST_MS) for (const c of controls) c.det.calibrate(c.value, now);
 
-    let by = null;
+    // A hard blink drags the brows and the mouth along, and they spring back
+    // when the eyes open: while the eyes are shut, and just after, only the blink counts.
+    let moved = false;
     for (const c of controls) {
-      if (c.det.update(c.value, now)) {
-        c.at = now;
-        by = by || c.id;
-      }
+      if (!c.det.update(c.value, now) || now < quietUntil || (c !== blink && now < shutUntil)) continue;
+      c.at = now;
+      moved = true;
     }
-    // A wide-eyed face moves brows and mouth together: that is one hop, not two.
-    if (!by || (by !== lastHop.by && now - lastHop.at < ONE_MS)) return;
-    lastHop = { by, at: now };
+    if (blink.det.raised) shutUntil = now + REOPEN_MS;
+    if (!moved) return;
+    quietUntil = now + QUIET_MS;
     hopped = true;
     hop(now, true);
   }
@@ -349,7 +352,7 @@ export function mount(root, { face }) {
     ctx.fillRect(0, H - 1, W, 1);
 
     if (state === 'over' || state === 'frozen') {   // step back behind the message
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.86;
       ctx.fillStyle = C.bg;
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
@@ -483,6 +486,7 @@ export function mount(root, { face }) {
     get best() { return best; },
     get world() { return world; },
     get hint() { return hint; },
+    get hops() { return hops; },
     get aspect() { return aspect(); },
     detectors: Object.fromEntries(controls.map((c) => [c.id, c.det])),
     feed(v) { fake = v; },

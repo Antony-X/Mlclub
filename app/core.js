@@ -593,8 +593,8 @@ export class FaceView {
 
 // ---------------------------------------------------------------------------
 // Emoji as pictures. Windows, Android and Linux each draw their own emoji and
-// old systems lack the newer ones, so the page brings its own set (Noto, in
-// vendor/emoji). Apple devices draw Apple's emoji themselves and keep them.
+// old systems lack the newer ones, so the page brings one set for all: the
+// iPhone's (vendor/emoji). Apple devices draw the same emoji themselves.
 
 const EMOJI_DIR = new URL('../vendor/emoji/', import.meta.url);
 const APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
@@ -639,6 +639,36 @@ export function setEmoji(host, ch) {
 // Fetches the pictures ahead of time, so the first show of each is instant.
 export function preloadEmoji(list) {
   for (const ch of list) if (!asText(ch)) new Image().src = emojiUrl(ch);
+}
+
+// ---------------------------------------------------------------------------
+// Colours. The page has a dark theme and a light one for a stand in the sun
+// (base.css). CSS follows by itself through the variables; a canvas asks here.
+
+const PALETTE = ['bg', 'panel', 'line', 'text', 'soft', 'gold', 'blue', 'salmon', 'green'];
+let colours = null;
+
+// The current theme's colours, e.g. palette().gold. Read again after 'themechange'.
+export function palette() {
+  if (!colours) {
+    const cs = getComputedStyle(document.documentElement);
+    colours = {};
+    for (const k of PALETTE) colours[k] = cs.getPropertyValue(`--${k}`).trim();
+  }
+  return colours;
+}
+
+export const theme = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+
+// 'light' or 'dark'. Fires 'themechange' on window once the colours have changed.
+export function setTheme(name) {
+  if (name === 'light') document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  colours = null;
+  store.set('theme', theme());
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = palette().bg;
+  dispatchEvent(new Event('themechange'));
 }
 
 // ---------------------------------------------------------------------------

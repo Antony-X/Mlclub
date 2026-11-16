@@ -5,8 +5,9 @@
 //
 // It is mounted only once the model is loaded and the camera is running, and
 // both games share the one camera, so a phone asks for permission once.
-import { FaceTracker, setEmoji } from './core.js';
+import { FaceTracker, setEmoji, setTheme, theme } from './core.js';
 import { Recorder } from './record.js';
+import { sfx } from './sfx.js';
 
 const CLUB = 'მანქანური სწავლების კლუბი';
 const GAMES = {
@@ -17,6 +18,7 @@ const GAMES = {
 const PRIVACY = 'ვიდეო არ იწერება და არსად იგზავნება.';
 const RECORDING = 'იწერება. ფაილი რჩება ამ მოწყობილობაზე.';
 const REC_LABEL = { start: 'ვიდეოს ჩაწერა', stop: 'ჩაწერის შეჩერება' };
+const THEME_LABEL = { dark: 'ნათელი ფონი', light: 'მუქი ფონი' };   // what a press switches to
 
 const MESSAGES = {
   loading: 'იტვირთება…',
@@ -60,6 +62,22 @@ recBtn.addEventListener('click', () => {
   if (rec.active) rec.stop(); else rec.start();
 });
 
+// Light page for a stand in the sun, dark otherwise; the choice is remembered.
+const sunBtn = $('sun');
+function showTheme() {
+  sunBtn.setAttribute('aria-pressed', String(theme() === 'light'));
+  sunBtn.setAttribute('aria-label', THEME_LABEL[theme()]);
+}
+function switchTheme() {
+  setTheme(theme() === 'light' ? 'dark' : 'light');
+  showTheme();
+}
+sunBtn.addEventListener('click', () => {
+  sunBtn.blur();
+  switchTheme();
+});
+showTheme();
+
 function route() {
   const id = location.hash.replace(/^#\/?/, '');
   return GAMES[id] ? id : '';
@@ -87,11 +105,11 @@ face.onprogress = (p) => {
 // the poster's network with one neuron missing.
 const ART_FACE = `
   <svg viewBox="0 0 96 96" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M48 8c19 0 30 14 30 36 0 24-13 44-30 44S18 68 18 44C18 22 29 8 48 8z" stroke="#ece8df" stroke-opacity=".7" stroke-width="1.5"/>
-    <path d="M48 8v80M18 44h60M24 24l48 46M72 24L24 70M30 14l36 0M22 60l52 0" stroke="#ece8df" stroke-opacity=".18"/>
-    <path d="M27 33c5-4 11-4 16-1M53 32c5-3 11-3 16 1" stroke="#e7c46b" stroke-width="2.5"/>
-    <path d="M29 42c4-3 9-3 13 0-4 3-9 3-13 0zM54 42c4-3 9-3 13 0-4 3-9 3-13 0z" stroke="#6fb6ce" stroke-width="2"/>
-    <path d="M34 66c9 7 19 7 28 0-9-3-19-3-28 0z" stroke="#d9776b" stroke-width="2"/>
+    <path class="t" d="M48 8c19 0 30 14 30 36 0 24-13 44-30 44S18 68 18 44C18 22 29 8 48 8z" stroke-opacity=".75" stroke-width="1.5"/>
+    <path class="t" d="M48 8v80M18 44h60M24 24l48 46M72 24L24 70M30 14l36 0M22 60l52 0" stroke-opacity=".25"/>
+    <path class="g" d="M27 33c5-4 11-4 16-1M53 32c5-3 11-3 16 1" stroke-width="2.5"/>
+    <path class="b" d="M29 42c4-3 9-3 13 0-4 3-9 3-13 0zM54 42c4-3 9-3 13 0-4 3-9 3-13 0z" stroke-width="2"/>
+    <path class="s" d="M34 66c9 7 19 7 28 0-9-3-19-3-28 0z" stroke-width="2"/>
   </svg>`;
 
 function artNetwork() {
@@ -99,11 +117,11 @@ function artNetwork() {
   let wires = '', nodes = '';
   for (let c = 0; c < 2; c++) for (const y1 of rows) for (const y2 of rows) {
     const gold = (c === 0 && y2 === 48) || (c === 1 && y1 === 48);
-    wires += `<path d="M${cols[c]} ${y1}L${cols[c + 1]} ${y2}" stroke="${gold ? '#e7c46b' : '#ece8df'}" stroke-opacity="${gold ? 0.9 : 0.25}"/>`;
+    wires += `<path class="${gold ? 'g' : 't'}" d="M${cols[c]} ${y1}L${cols[c + 1]} ${y2}" stroke-opacity="${gold ? 0.9 : 0.3}"/>`;
   }
   for (const x of cols) for (const y of rows) {
     const you = x === 48 && y === 48;
-    nodes += `<circle cx="${x}" cy="${y}" r="7" fill="${you ? '#e7c46b' : '#1a1d21'}" stroke="${you ? '#e7c46b' : '#ece8df'}" stroke-width="2"/>`;
+    nodes += `<circle class="node${you ? ' you' : ''}" cx="${x}" cy="${y}" r="7" stroke-width="2"/>`;
   }
   return `<svg viewBox="0 0 96 96" fill="none" aria-hidden="true">${wires}${nodes}</svg>`;
 }
@@ -201,13 +219,15 @@ addEventListener('hashchange', go);
 addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (e.code === 'Escape' && route()) location.hash = '#/';
-  else if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey) {
+  else if (e.ctrlKey || e.metaKey || e.altKey) return;
+  else if (e.code === 'KeyF') {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
-  }
+  } else if (e.code === 'KeyL') switchTheme();
+  else if (e.code === 'KeyM') sfx.muted = !sfx.muted;
 });
 
 face.load().catch(() => {});   // start the download while the visitor reads the menu
 go();
 
-window.__app = { face, go, rec };   // for tests
+window.__app = { face, go, rec, sfx };   // for tests

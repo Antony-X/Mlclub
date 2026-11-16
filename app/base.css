@@ -4,10 +4,11 @@
 @font-face { font-family: "FiraGO"; font-weight: 700; font-display: swap; src: url("../vendor/fonts/FiraGO-700.woff2") format("woff2"); }
 
 :root {
-  --bg: #111316; --panel: #1a1d21; --line: #30353b;
-  --text: #ece8df; --soft: #8b9096;
+  --bg: #111316; --panel: #1a1d21; --line: #454b53;
+  --text: #ece8df; --soft: #a3a8ae;
   --gold: #e7c46b; --blue: #6fb6ce; --salmon: #d9776b; --green: #8cc084;
   --action: var(--gold);    /* the one accent of the interface: main button, focus ring, state */
+  --on-action: #111316;     /* text on the accent */
   --font: "FiraGO", "Noto Sans Georgian", "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
   --emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
@@ -28,6 +29,15 @@
   --btn-h: 48px;
 }
 @media (min-width: 900px) { :root { --pad: 24px; } }
+
+/* For a stand in the sun: a light page with dark, saturated colours. A dark
+   screen turns into a mirror outdoors; this one stays readable. */
+:root[data-theme="light"] {
+  --bg: #f7f4ec; --panel: #ebe6d9; --line: #4a4f55;
+  --text: #111316; --soft: #41464c;
+  --gold: #b06c00; --blue: #0b6a8a; --salmon: #c23b2a; --green: #2f7d32;
+  --on-action: #ffffff;
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -63,7 +73,9 @@ body {
   border-bottom: 1px solid var(--line);
 }
 .top .logo { height: 24px; width: auto; aspect-ratio: 408 / 296; flex: none; }
-.top .title { margin: 0 auto 0 0; font-weight: 600; font-size: 15px; line-height: 1.2; white-space: nowrap; }   /* everything after it stands on the right */
+.top .logo circle { fill: var(--bg); }
+.top .logo circle.you { fill: var(--gold); }
+.top .title { margin: 0 auto 0 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 15px; line-height: 1.2; white-space: nowrap; }   /* everything after it stands on the right */
 .top .privacy { color: var(--soft); font-size: var(--t-label); white-space: nowrap; }
 .top .back {
   display: none; flex: none; width: 44px; height: 44px; margin: 0 calc(-1 * var(--s-1)) 0 calc(-1 * var(--s-3));
@@ -80,21 +92,32 @@ body:not([data-route="menu"]) .top .logo { order: 9; }
   .top .privacy { display: none; }
 }
 
-/* The record button: a ring at rest; a red square and the running time while recording. */
-.top .rec {
+/* The tools on the right: the light/dark switch, and in a game the record button
+   (a ring at rest; a red square and the running time while recording). */
+.top .tools { flex: none; display: flex; margin: 0 calc(-1 * var(--s-2)); }
+.top .tool {
   flex: none; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
-  min-width: 44px; height: 44px; padding: 0 var(--s-3); margin: 0 calc(-1 * var(--s-1));
+  min-width: 44px; height: 44px; padding: 0 var(--s-3);
   font: 600 var(--t-small)/1 var(--font); color: var(--text);
   background: none; border: 0; border-radius: var(--radius); cursor: pointer;
   -webkit-appearance: none; appearance: none;
   transition: background-color var(--m-out) var(--ease);
 }
+.top .tool svg { width: 20px; height: 20px; }
+.top .tool:active { background: var(--panel); }
+.top .sun .moon, :root[data-theme="light"] .top .sun .rays { display: none; }
+:root[data-theme="light"] .top .sun .moon { display: block; }
 .top .rec i { width: 16px; height: 16px; border: 2px solid var(--soft); border-radius: 50%; }
-.top .rec:active { background: var(--panel); }
 body[data-rec] .top .rec i { border: 0; border-radius: 0; background: var(--salmon); }
 body[data-rec] .top .privacy { color: var(--salmon); }
 @media (hover: hover) and (pointer: fine) {
-  .top .rec:hover { background: var(--panel); transition-duration: var(--m-in); }
+  .top .tool:hover { background: var(--panel); transition-duration: var(--m-in); }
+}
+/* A narrow phone: the logo steps aside for the tools. */
+@media (max-width: 479px) { body[data-rec] .top .logo { display: none; } }
+@media (max-width: 359px) {
+  body:not([data-route="menu"]) .top .logo { display: none; }
+  body[data-route="menu"] .top .title { font-size: var(--t-label); }
 }
 
 #view { flex: 1; min-height: 0; position: relative; }
@@ -109,14 +132,13 @@ body[data-rec] .top .privacy { color: var(--salmon); }
   cursor: pointer; -webkit-appearance: none; appearance: none;
   transition: background-color var(--m-out) var(--ease), border-color var(--m-out) var(--ease), transform var(--m-out) var(--ease);
 }
-.btn.primary { background: var(--gold); border-color: var(--gold); color: #111316; }
+.btn.primary { background: var(--gold); border-color: var(--gold); color: var(--on-action); }
 @media (hover: hover) and (pointer: fine) {
   .btn:hover {
     transform: translateY(-1px); transition-duration: var(--m-in);
-    border-color: var(--soft); background: #2a2d31; background: color-mix(in srgb, var(--panel) 90%, var(--text));
+    border-color: var(--soft); background: color-mix(in srgb, var(--panel) 90%, var(--text));
   }
   .btn.primary:hover {
-    border-color: #e8c97b; background: #e8c97b;
     border-color: color-mix(in srgb, var(--gold) 86%, var(--text)); background: color-mix(in srgb, var(--gold) 86%, var(--text));
   }
   .top .back:hover { background: var(--panel); transition-duration: var(--m-in); }
@@ -127,7 +149,7 @@ kbd {
   font: 400 var(--t-label)/1 var(--mono); color: var(--soft);
   border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-1);
 }
-.btn.primary kbd { color: #111316; border-color: rgba(17, 19, 22, .35); }
+.btn.primary kbd { color: var(--on-action); border-color: currentColor; }
 @media (pointer: coarse) { kbd { display: none; } }
 
 .meter { height: 4px; background: var(--line); border-radius: var(--radius); overflow: hidden; }
@@ -161,6 +183,12 @@ kbd {
 .card > span:last-child { color: var(--soft); font-size: var(--t-body); }
 .card-art { display: flex; align-items: center; justify-content: center; gap: var(--s-4); height: 96px; margin-bottom: var(--s-3); }
 .card-art svg { height: 100%; width: auto; }
+.card-art .t { stroke: var(--text); }
+.card-art .g { stroke: var(--gold); }
+.card-art .b { stroke: var(--blue); }
+.card-art .s { stroke: var(--salmon); }
+.card-art .node { fill: var(--panel); stroke: var(--text); }
+.card-art .node.you { fill: var(--gold); stroke: var(--gold); }
 .card-emoji { display: flex; font-size: 64px; line-height: 1; }
 .card:active { border-color: var(--soft); }
 @media (hover: hover) and (pointer: fine) {
@@ -194,6 +222,6 @@ kbd {
   .btn, .card { transition-property: background-color, border-color; }
   .btn:hover, .btn:active, .card:hover { transform: none; }
   .btn:active { background: var(--bg); }
-  .btn.primary:active { background: #c9a956; }
+  .btn.primary:active { background: color-mix(in srgb, var(--gold) 85%, #000); }
   .meter i { transition: none; }
 }

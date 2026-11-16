@@ -1,5 +1,5 @@
-// სახე → ემოჯი. The camera picture with the mesh, the emoji the face matches,
-// a collection to fill, and a 45-second round of "make this face".
+// სახე → ემოჯი. The camera picture with the mesh, the emoji the face matches
+// (lit among all of them), and a 45-second round of "make this face".
 import { FaceView, emojiEl, setEmoji, preloadEmoji, haptic, store } from '../core.js';
 import { EMOJIS, NEUTRAL, features, scoreAll, Stabilizer } from '../rules.js';
 
@@ -13,7 +13,8 @@ const BARS_EVERY = 90;     // ms between bar updates: readable, not jittery
 const RANK_EVERY = 600;    // ms between changes of which signals are listed
 const BAR_ROWS = 5;
 
-const SET = EMOJIS.filter((r) => r.e !== NEUTRAL);
+const SET = EMOJIS.filter((r) => r.e !== NEUTRAL);          // what a round can ask for
+const HINT = new Map(SET.map((r) => [r.e, r.hint]));
 const EASY = SET.filter((r) => r.level === 1).length;
 const SMALL = matchMedia('(max-width: 899px), (max-height: 520px)');   // same test as emoji.css
 const CALM = matchMedia('(prefers-reduced-motion: reduce)');
@@ -76,8 +77,7 @@ const TEMPLATE = `
   </div>
   <div class="eg-coll"></div>
   <div class="eg-acts">
-    <button class="btn" data-a="reset">თავიდან <kbd>R</kbd></button>
-    <span class="eg-count num"></span>
+    <button class="btn" data-a="again" hidden>თავიდან <kbd>R</kbd></button>
     <button class="btn primary" data-a="play">თამაში <kbd>Space</kbd></button>
     <button class="btn" data-a="skip" hidden>შემდეგი <kbd>Space</kbd></button>
   </div>
@@ -88,38 +88,36 @@ export function mount(root, { face }) {
   const el = root.firstElementChild;
   const q = (s) => el.querySelector(s);
   const nowEl = q('.eg-now'), targetEl = q('.eg-target'), targetEmoji = q('.eg-target-e');
-  const ring = q('.eg-ring-fg'), hintEl = q('.eg-hint'), countEl = q('.eg-count');
+  const ring = q('.eg-ring-fg'), hintEl = q('.eg-hint');
   const hud = q('.eg-hud'), clock = q('.eg-clock'), clockFill = q('.eg-clock i');
   const scoreEl = q('[data-r=score]'), timeEl = q('[data-r=time]');
   const result = q('.eg-result'), msg = q('.eg-msg');
-  const playBtn = q('[data-a=play]'), skipBtn = q('[data-a=skip]');
+  const playBtn = q('[data-a=play]'), skipBtn = q('[data-a=skip]'), againBtn = q('[data-a=again]');
   const coll = q('.eg-coll');
-  const cells = new Map(SET.map((r) => {
+  // Every emoji is on show from the start; the one the face makes is lit.
+  const cells = new Map(EMOJIS.map((r) => {
     const c = document.createElement('button');
     c.className = 'eg-cell';
     c.dataset.e = r.e;
-    c.setAttribute('aria-label', r.hint);
+    if (r.hint) c.setAttribute('aria-label', r.hint); else c.tabIndex = -1;
     c.append(emojiEl(r.e));
     coll.append(c);
     return [r.e, c];
   }));
-  preloadEmoji(EMOJIS.map((r) => r.e));
-  setEmoji(nowEl, NEUTRAL);
   const bars = [...el.querySelectorAll('.eg-bar')].map((row) => ({
     name: row.children[0], num: row.children[1], fill: row.children[2].firstElementChild, key: '',
   }));
+  preloadEmoji(EMOJIS.map((r) => r.e));
 
   const view = new FollowView(q('canvas'), face);
   const stab = new Stabilizer();
-  const unlocked = new Set();
   const ac = new AbortController();
 
   let raf = 0, prev = 0;
   let last = null;            // the latest detection result
   let fake = null;            // tests: a function standing in for face.detect
-  let shown = NEUTRAL;        // the emoji on screen
-  let heldMs = 0;             // how long it has been on screen
-  let lostMs = 0, lost = false, calib = false;
+  let shown = null;           // the emoji on screen
+  let lostMs = 0, lost = false;
   let round = null;           // { left, score, target, age, confirm, recent }
   let pick = null, pickMs = 0, hover = null;   // a hint asked for in free play
   let aimed = null;           // the emoji in the ring right now
@@ -134,35 +132,24 @@ export function mount(root, { face }) {
 
   function setShown(e) {
     if (e === shown) return;
+    if (shown) cells.get(shown).classList.remove('eg-live');
     shown = e;
-    heldMs = 0;
+    cells.get(e).classList.add('eg-live');
     setEmoji(nowEl, e);
   }
-
-  function unlock(e) {
-    if (unlocked.has(e) || !cells.has(e)) return;
-    unlocked.add(e);
-    cells.get(e).classList.add('eg-on');
-    pop(cells.get(e), 1.4);
-    showCount();
-    if (!round) haptic(15);
-    if (e === pick) pickMs = PICK_MS - 900;      // got it: the hint can go
-  }
-
-  function showCount() { text(countEl, `${unlocked.size} / ${SET.length}`); }
 
   // The ring shows the round's target, or the emoji whose hint was asked for.
   function syncAim() {
     const a = round ? round.target : hover || pick;
     if (a === aimed) return;
-    if (aimed && cells.has(aimed)) cells.get(aimed).classList.remove('eg-sel');
+    if (aimed) cells.get(aimed).classList.remove('eg-sel');
     aimed = a;
     aimMs = 0;
     el.classList.toggle('eg-aim', !!a);
     if (!a) return;
     cells.get(a).classList.add('eg-sel');
     setEmoji(targetEmoji, a);
-    hintEl.textContent = EMOJIS.find((r) => r.e === a).hint;
+    hintEl.textContent = HINT.get(a);
   }
 
   function setPick(e) {
@@ -197,7 +184,6 @@ export function mount(root, { face }) {
   function hit() {
     round.score++;
     round.confirm = CONFIRM_MS;
-    unlock(round.target);
     haptic(30);
     pop(targetEl, 1.12);
   }
@@ -214,25 +200,22 @@ export function mount(root, { face }) {
     syncMode();
   }
 
-  function reset() {
-    round = null;
+  // R: a round starts over; outside a round the last result goes away.
+  function again() {
+    if (round) { start(); return; }
     pick = hover = null;
     result.hidden = true;
-    unlocked.clear();
-    for (const c of cells.values()) c.classList.remove('eg-on');
     stab.reset();
     face.resetBaseline();
-    setShown(NEUTRAL);
     syncMode();
   }
 
   function syncMode() {
     const on = !!round;
-    hud.hidden = clock.hidden = skipBtn.hidden = !on;
+    hud.hidden = clock.hidden = skipBtn.hidden = againBtn.hidden = !on;
     playBtn.hidden = on;
     if (on) result.hidden = true;
     clockAt = secAt = -1;
-    showCount();
     syncAim();
   }
 
@@ -281,18 +264,15 @@ export function mount(root, { face }) {
     view.draw(last);
 
     if (res && res.found) {
-      if (res.calibrating !== calib) { calib = res.calibrating; el.classList.toggle('eg-calib', calib); }
-      const scores = scoreAll(features(res));
-      setShown(calib ? NEUTRAL : stab.update(scores, now, aimed));
+      res.aspect = face.width / face.height;             // the rules measure the landmarks themselves
+      res.h = face.height;
+      const f = features(res);
+      // Turned far away or very small: the last emoji stays rather than a guess.
+      if (!f.away) setShown(stab.update(scoreAll(f), now, aimed));
       showBars(res.raw, now);
     }
 
     const live = last.found && !document.hidden;
-    if (live) {
-      heldMs += dt;
-      if (heldMs >= HOLD_MS && shown !== NEUTRAL) unlock(shown);
-    }
-
     if (round && live) {
       round.left -= dt;
       if (round.confirm > 0) {
@@ -316,7 +296,7 @@ export function mount(root, { face }) {
         aimMs = live && shown === aimed ? Math.min(HOLD_MS, aimMs + dt) : Math.max(0, aimMs - 2 * dt);
         if (aimMs >= HOLD_MS) {
           if (round) hit();
-          else if (pick === aimed) pickMs = Math.max(pickMs, PICK_MS - 900);
+          else { pop(targetEl, 1.12); haptic(15); pickMs = Math.max(pickMs, PICK_MS - 900); }   // made it: the hint can go
         } else if (aimMs > 0) pickMs = 0;
       } else if (!round && shown !== aimed) aimMs = 0;
       const pct = Math.round(100 * aimMs / HOLD_MS);
@@ -340,38 +320,51 @@ export function mount(root, { face }) {
     const a = b && b.dataset.a;
     if (a === 'play') start();
     else if (a === 'skip') skip();
-    else if (a === 'reset') reset();
+    else if (a === 'again') again();
     else if (!result.hidden && e.target.closest('.eg-cam')) result.hidden = true;
-    else if (!round) setPick(b && b.dataset.e && b.dataset.e !== pick ? b.dataset.e : null);
+    else if (!round) setPick(b && HINT.has(b.dataset.e) && b.dataset.e !== pick ? b.dataset.e : null);
   }, { signal: ac.signal });
 
+  const hinted = (node) => {
+    const cell = node.closest('.eg-cell');
+    return cell && HINT.has(cell.dataset.e) ? cell.dataset.e : null;
+  };
   coll.addEventListener('pointerover', (e) => {
-    const cell = e.target.closest('.eg-cell');
-    if (e.pointerType === 'mouse' && !round) hover = cell ? cell.dataset.e : null;
+    if (e.pointerType === 'mouse' && !round) hover = hinted(e.target);
   }, { signal: ac.signal });
   coll.addEventListener('pointerleave', () => { hover = null; }, { signal: ac.signal });
   // The keyboard gets the same hint as the mouse.
   coll.addEventListener('focusin', (e) => {
-    if (!round && e.target.matches('.eg-cell:focus-visible')) hover = e.target.dataset.e;
+    if (!round && e.target.matches('.eg-cell:focus-visible')) hover = hinted(e.target);
   }, { signal: ac.signal });
   coll.addEventListener('focusout', () => { hover = null; }, { signal: ac.signal });
 
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === 'KeyR') reset();
+    if (e.code === 'KeyR') again();
     else if (e.code === 'Space' && !(e.target instanceof Element && e.target.closest('button, a'))) {
       e.preventDefault();
       if (round) skip(); else start();
     }
   }, { signal: ac.signal });
 
+  // A recording made from the top bar gets the current emoji in its corner.
+  face.recOverlay = (ctx, w, h) => {
+    const img = nowEl.firstElementChild;
+    if (!img || img.tagName !== 'IMG' || !img.complete || !img.naturalWidth) return;
+    const size = h / 5;
+    ctx.drawImage(img, w - size - 16, h - size - 16, size, size);
+  };
+  if (face.enableHands) face.enableHands();        // hand emojis join once the model is in
+
+  setShown(NEUTRAL);
   syncMode();
   raf = requestAnimationFrame(frame);
 
   const hook = {                                   // for tests
     get state() {
       return {
-        shown, lost, calib, aimed, aim: aimMs / HOLD_MS, unlocked: [...unlocked], total: SET.length,
+        shown, lost, aimed, aim: aimMs / HOLD_MS, total: SET.length,
         round: round && { left: round.left, score: round.score, target: round.target },
         result: result.hidden ? null : { score: +q('[data-r=final]').textContent, best: +q('[data-r=best]').textContent },
       };
@@ -384,6 +377,7 @@ export function mount(root, { face }) {
     cancelAnimationFrame(raf);
     ac.abort();
     view.destroy();
+    face.recOverlay = null;
     if (window.__emoji === hook) delete window.__emoji;
   };
 }

@@ -47,10 +47,19 @@ frame. The canvas gets its size from CSS. `view.project(landmark)` gives CSS pix
 ## Emoji pictures
 
 `emojiEl('😀')` gives an `<img class="emoji-img">` from `vendor/emoji/` (1em square, so `font-size` sets
-its size); on Apple devices it gives the system's own emoji as text. `setEmoji(host, ch)` puts one into
+its size); on Apple devices it gives the system's own emoji as text (the same artwork). `setEmoji(host, ch)` puts one into
 an element and swaps it without a blink; `preloadEmoji(list)` fetches a list ahead of time.
 The files are named by code points (`1f600.webp`, `1f62e-200d-1f4a8.webp`); a new emoji needs its file,
 see `vendor/SOURCES.txt` for where they come from.
+
+## Colours and sound
+
+Two themes, dark and light (`:root[data-theme="light"]` in `base.css`). CSS uses the variables only.
+A canvas asks `palette()` from `core.js` (`{ bg, panel, line, text, soft, gold, blue, salmon, green }`)
+and reads it again on the window event `themechange`. `theme()` gives 'light' or 'dark'.
+
+`import { sfx } from '../sfx.js'`, then `sfx.play(name, level)`: `hop`, `pass`, `crash`, `best`, `match`,
+`tick`, `start`, `end`. `level` raises the pitch along a scale. Silent until the first tap or key press.
 
 ## Recording
 

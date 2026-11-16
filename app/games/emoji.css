@@ -66,8 +66,8 @@
 .eg-hint { display: none; margin: 0; font: 700 var(--t-lead)/1.2 var(--font); letter-spacing: var(--tight); }
 
 /* ---------- the collection ---------- */
-/* The cells reach past the --pad line by their own inner margin, so the glyphs
-   stand on it (the top bar's back arrow does the same). */
+/* Every emoji, all the time. The cells reach past the --pad line by their own
+   inner margin, so the glyphs stand on it (the top bar's back arrow does the same). */
 .eg-coll {
   grid-area: coll; min-height: 0;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); grid-auto-rows: 44px;
@@ -79,20 +79,21 @@
   background: none; border: 0; border-radius: var(--radius); cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
-.eg-cell > * { opacity: .3; filter: grayscale(1); }
-.eg-cell.eg-on > * { opacity: 1; filter: none; }
-.eg-cell.eg-sel { outline: 1px solid var(--gold); outline-offset: -1px; }
+.eg-cell > * { transition: transform var(--m-in) var(--ease); }
+/* The emoji the face makes now is lit; the one asked for is marked. */
+.eg-cell.eg-sel { outline: 1px solid var(--soft); outline-offset: -1px; }
+.eg-cell.eg-live { background: var(--panel); outline: 2px solid var(--gold); outline-offset: -2px; }
+.eg-cell.eg-live > * { transform: scale(1.25); }
 .eg-cell:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .eg-cell > * { transition: none; } }
 
-/* ---------- reset, count, play ---------- */
+/* ---------- play, or start over and next ---------- */
 .eg-acts {
   grid-area: acts;
-  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--s-3);
+  display: flex; gap: var(--s-3);
   padding: var(--s-2) var(--pad); border-top: 1px solid var(--line);
 }
-.eg-acts .btn { justify-self: end; white-space: nowrap; }
-.eg-acts .btn:first-child { justify-self: start; }
-.eg-count { font: 400 var(--t-body)/1 var(--mono); white-space: nowrap; }
+.eg-acts .btn { flex: 1; white-space: nowrap; }
 
 /* ---------- small screens: three bars, and a target takes their place ---------- */
 @media (max-width: 899px), (max-height: 520px) {
@@ -104,7 +105,6 @@
 }
 /* The narrowest phones: everything a step smaller, nothing dropped. */
 @media (max-width: 359px) {
-  .eg-acts .btn { padding: 0 var(--s-4); }
   .eg-target { width: 64px; height: 64px; }
   .eg-target-e { font-size: 36px; }
   .eg-hint { font-size: var(--t-body); }
@@ -171,5 +171,4 @@
   .eg-cell { font-size: 32px; font-size: clamp(26px, 4.6cqh, 52px); }
 
   .eg-acts { border-top: 0; padding: var(--s-3) var(--pad) var(--s-5); }
-  .eg-count { font-size: var(--t-lead); font-size: clamp(var(--t-lead), 2.7cqh, 32px); }
 }

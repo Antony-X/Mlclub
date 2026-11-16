@@ -15,6 +15,8 @@ export const P = {
   RUN_IN: 1.0,          // before the first one
   SPEED: [0.27, 0.36],  // per s, first layer .. layer RAMP
   RAMP: 40,
+  TWO: [4, 12],         // gaps of two neurons come in between these layers,
+  ONE: [16, 40, 0.5],   // gaps of one between these, up to this share
   REACH: 1.5,           // how far the next gap may be from the last one, up or down, in slots
   STEP: 1 / 120,        // s, fixed physics step
   AHEAD: 4.5,           // layers exist this far ahead of the player
@@ -36,9 +38,8 @@ function makeLayer(i, x, a, k) {
 // How many neurons are missing in layer i: three at first, then two, later
 // sometimes only one.
 function gapSize(i, rand) {
-  if (i <= 4) return 3;
-  const two = clamp((i - 4) / 8, 0, 1);
-  const one = 0.5 * clamp((i - 16) / 24, 0, 1);
+  const two = clamp((i - P.TWO[0]) / (P.TWO[1] - P.TWO[0]), 0, 1);
+  const one = P.ONE[2] * clamp((i - P.ONE[0]) / (P.ONE[1] - P.ONE[0]), 0, 1);
   const r = rand();
   if (r < one) return 1;
   return r < one + (1 - one) * two ? 2 : 3;

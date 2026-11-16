@@ -36,6 +36,10 @@ fonts/FiraGO-400.woff2, FiraGO-600.woff2, FiraGO-700.woff2
 c589233d97d72e4943e49cda84a645782a1252b246be23493d856013ce3a12af  fonts/FiraGO-700.woff2
 
 emoji/*.webp  (173 emoji pictures: faces, hands and a few symbols)
-  Noto Emoji, 3D set (Google), Apache License 2.0
-  https://github.com/googlefonts/noto-emoji at commit 99701e07d3d1fe1bdbcdb14964547f0fd592966f, folder 3D/png/512
-  resized to 256 px and saved as WebP (quality 86); named by code points joined with "-", without U+FE0F
+  Apple Color Emoji artwork, (c) Apple Inc. NOT under an open licence: Apple does not
+  allow redistribution. Included on the repository owner's decision, for the club's stand.
+  To go back to a free set, replace these files with Noto Emoji (Apache License 2.0,
+  https://github.com/googlefonts/noto-emoji, folder 3D/png/512) under the same names.
+  taken from https://github.com/iamcal/emoji-data at commit e77759c296ed37beb0dbd63908b43d8619509c6d,
+  folder img-apple-160; enlarged to 320 px and saved as WebP (quality 90);
+  named by code points joined with "-", without U+FE0F

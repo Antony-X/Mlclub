@@ -12,7 +12,7 @@
 }
 /* The camera picture gives way first when the column is short. */
 .bg-cam {
-  position: relative; flex: 0 1 auto; min-height: 64px; aspect-ratio: 4 / 3;
+  position: relative; flex: 0 1 auto; min-height: var(--s-8); aspect-ratio: 4 / 3;
   background: var(--panel); border: 1px solid var(--line);
 }
 .bg-cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -26,7 +26,7 @@
 .bg-sig span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A track with a fill (scaled from the left) and a tick at the firing level. */
 .bg-bar { grid-column: 1 / -1; position: relative; height: 16px; overflow: hidden; }
-.bg-bar::before, .bg-bar i { content: ""; position: absolute; inset: 4px 0; }
+.bg-bar::before, .bg-bar i { content: ""; position: absolute; inset: var(--s-1) 0; }
 .bg-bar::before { background: var(--line); }
 .bg-bar i { background: var(--soft); transform-origin: 0 50%; transform: scaleX(0); }
 .bg-bar b { position: absolute; inset: 0; border-left: 1px solid var(--text); }

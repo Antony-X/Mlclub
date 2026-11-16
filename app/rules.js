@@ -1,116 +1,153 @@
-// Blendshape scores -> emoji. Pure functions: no DOM, runs in Node for tests.
+// A face -> an emoji. Pure functions: no DOM, runs in Node for tests.
+//
+// Every threshold here was read off real photos run through the same model
+// (dev/emoji/fixtures.json, checked by dev/test_rules.mjs). What that showed:
+// - tongueOut, cheekPuff, noseSneer and mouthFrown stay at zero: unusable.
+// - eyeBlink is 0.2 to 0.8 on shut eyes and up to 0.5 on open eyes in a big
+//   smile, so the eyes are measured from the landmarks instead (geometry()).
+// - mouthPucker rests as high as 0.86 and browDown as high as 0.8 on plain
+//   serious faces; both only count together with a second sign.
+// - mouthSmile rises to 0.5 and more on yawns and shouts.
+// - eyes rolled up read only 0.15 to 0.30 (eyeLookUp), below many resting faces:
+//   no eye-roll emoji.
 
 const clamp = (x) => Math.max(0, Math.min(1, x));
 const H = (x, a, b) => clamp((x - a) / (b - a)); // rises from 0 at a to 1 at b
 const L = (x, a, b) => 1 - H(x, a, b);            // falls from 1 at a to 0 at b
-const A = Math.min;
+const A = Math.min, O = Math.max;
 const avg = (a, b) => (a + b) / 2;
+const DEG = 180 / Math.PI;
 
-// Measurements taken straight from the 478 landmarks, for what the blendshapes
-// report poorly: how far each eye is open, whether the lips are parted, how high
-// each brow sits. Distances are in 3D (z has the scale of x), so a turned or
-// tilted head changes them little. aspect = picture width / height.
-const EYE_R = { w: [33, 133], lids: [[160, 144], [159, 145], [158, 153]], brow: 105 };
-const EYE_L = { w: [263, 362], lids: [[387, 373], [386, 374], [385, 380]], brow: 334 };
+// Measurements taken straight from the 478 landmarks. Distances are in 3D (z
+// has the scale of x), so a turned or tilted head changes them little.
+// aspect = picture width / height.
+const EYE_R = { w: [33, 133], lids: [[160, 144], [159, 145], [158, 153]] };
+const EYE_L = { w: [263, 362], lids: [[387, 373], [386, 374], [385, 380]] };
 const LIPS = [[82, 87], [13, 14], [312, 317]];
 
 export function geometry(pts, aspect = 1) {
   const d = (i, j) => Math.hypot((pts[i].x - pts[j].x) * aspect, pts[i].y - pts[j].y, (pts[i].z - pts[j].z) * aspect);
   const mean = (pairs) => pairs.reduce((s, [i, j]) => s + d(i, j), 0) / pairs.length;
-  const eyes = d(33, 263);                        // outer corner to outer corner
   const eye = (e) => mean(e.lids) / d(e.w[0], e.w[1]);
-  const mid = (e) => ({
-    x: (pts[e.w[0]].x + pts[e.w[1]].x) / 2, y: (pts[e.w[0]].y + pts[e.w[1]].y) / 2, z: (pts[e.w[0]].z + pts[e.w[1]].z) / 2,
-  });
-  const brow = (e) => {
-    const m = mid(e), b = pts[e.brow];
-    return Math.hypot((b.x - m.x) * aspect, b.y - m.y, (b.z - m.z) * aspect) / eyes;
-  };
   const r4 = (x) => Math.round(x * 1e4) / 1e4;
   return {
-    eyeL: r4(eye(EYE_L)), eyeR: r4(eye(EYE_R)),   // lid gap / eye width: about 0.3 open, under 0.12 shut
+    eyeL: r4(eye(EYE_L)), eyeR: r4(eye(EYE_R)),   // lid gap / eye width: about 0.3 open, under 0.14 shut
     lips: r4(mean(LIPS) / d(61, 291)),            // inner lip gap / mouth width: 0 = lips together
-    browL: r4(brow(EYE_L)), browR: r4(brow(EYE_R)),
-    mouth: r4(d(61, 291) / eyes),                 // mouth width against the eyes
+    mouth: r4(d(61, 291) / d(33, 263)),           // mouth width / eye span: about 0.55, less when puckered
   };
 }
 
-// Compact features from one detection result ({ bs, roll }).
+// One detection result -> the few numbers the rules read.
+// res: { raw, roll, matrix } plus landmarks (live) or geo (fixtures);
+// aspect and h (picture height in pixels) let it measure the landmarks and the
+// size of the face.
 export function features(res) {
-  const bs = res.bs || res.raw || {};
-  const g = (k) => bs[k] || 0;
+  const raw = res.raw || {};
+  const g = (k) => raw[k] || 0;
+  const both = (k) => avg(g(k + 'Left'), g(k + 'Right'));
   const blinkL = g('eyeBlinkLeft'), blinkR = g('eyeBlinkRight');
+  // Without landmarks (hand-made test input) the eyes follow the blink score.
+  const geo = res.geo || (res.landmarks ? geometry(res.landmarks, res.aspect || 1)
+    : { eyeL: 0.3 * (1 - blinkL), eyeR: 0.3 * (1 - blinkR), lips: 0.6 * g('jawOpen') + 0.25 * both('mouthUpperUp'), mouth: 0.55 - 0.15 * g('mouthPucker') });
+
+  // Head pose from the 4x4 matrix (column-major): where the face points.
+  const m = res.matrix;
+  const yaw = m ? Math.atan2(m[8], m[10]) * DEG : res.yaw || 0;          // + = toward the picture's right edge
+  const pitch = m ? -Math.atan2(m[9], m[10]) * DEG : res.pitch || 0;     // + = nodding down
+  const facePx = res.box && res.h ? (res.box.y1 - res.box.y0) * res.h : 999;
+
+  const eyeLo = Math.min(geo.eyeL, geo.eyeR), eyeHi = Math.max(geo.eyeL, geo.eyeR);
+  // A wink: one lid lower than the other, by the landmarks and by the model, on the same side.
+  const dGeo = geo.eyeR - geo.eyeL, dBlink = blinkL - blinkR;
+  const uneven = dGeo * dBlink > 0
+    ? Math.abs(dGeo) / 0.10 + Math.abs(dBlink) / 0.30
+    : Math.max(Math.abs(dGeo) / 0.10, Math.abs(dBlink) / 0.30) / 2;
   const outerL = g('browOuterUpLeft'), outerR = g('browOuterUpRight');
-  const smileL = g('mouthSmileLeft'), smileR = g('mouthSmileRight');
-  const hiBlink = Math.max(blinkL, blinkR), loBlink = Math.min(blinkL, blinkR);
+  const smile = both('mouthSmile');
+
   return {
-    smile: avg(smileL, smileR),
-    smileAsym: Math.abs(smileL - smileR),
+    smile,
     jaw: g('jawOpen'),
-    closed: loBlink,
-    wink: A(H(hiBlink, 0.45, 0.65), L(loBlink, 0.2, 0.4)),
-    browUp: avg(g('browInnerUp'), avg(outerL, outerR)),
-    browInner: g('browInnerUp'),
+    teeth: both('mouthUpperUp'),                 // upper lip lifted off the teeth
+    bare: A(both('mouthUpperUp'), both('mouthLowerDown')),   // both lips pulled back
+    lips: geo.lips,
+    shut: L(eyeHi, 0.15, 0.19),                  // both eyes closed
+    narrow: L(eyeLo, 0.2, 0.25),
+    wink: A(H(uneven, 1.4, 1.8), H(eyeHi, 0.17, 0.21), L(Math.abs(yaw), 25, 32)),
+    brows: avg(g('browInnerUp'), avg(outerL, outerR)),
     browAsym: Math.abs(outerL - outerR),
-    browDown: avg(g('browDownLeft'), g('browDownRight')),
+    browDown: both('browDown'),
     pucker: g('mouthPucker'),
-    frown: avg(g('mouthFrownLeft'), g('mouthFrownRight')),
-    squint: avg(g('eyeSquintLeft'), g('eyeSquintRight')),
-    lookUp: avg(g('eyeLookUpLeft'), g('eyeLookUpRight')),
-    lookSide: Math.max(
-      avg(g('eyeLookOutLeft'), g('eyeLookInRight')),
-      avg(g('eyeLookInLeft'), g('eyeLookOutRight'))),
-    lipRoll: avg(g('mouthRollLower'), g('mouthRollUpper')),
-    stretch: avg(g('mouthStretchLeft'), g('mouthStretchRight')),
-    mouthSide: Math.max(g('mouthLeft'), g('mouthRight')),
-    sneer: avg(g('noseSneerLeft'), g('noseSneerRight')),
-    teeth: avg(
-      avg(g('mouthUpperUpLeft'), g('mouthUpperUpRight')),
-      avg(g('mouthLowerDownLeft'), g('mouthLowerDownRight'))),
+    kiss: g('mouthPucker') + 2 * (0.52 - geo.mouth),   // puckered and narrower than a resting mouth
+    pout: g('mouthShrugLower'),                  // lower lip pushed up, corners down
+    side: O(g('mouthLeft'), g('mouthRight')),
+    lookSide: O(avg(g('eyeLookOutLeft'), g('eyeLookInRight')), avg(g('eyeLookInLeft'), g('eyeLookOutRight'))),
     tilt: Math.abs(res.roll || 0),
+    yaw, pitch,
+    // Turned far away or very small: the model's numbers stop meaning much.
+    away: Math.abs(yaw) > 30 || Math.abs(pitch) > 30 || facePx < 45,
   };
 }
 
-const upright = (f) => L(f.tilt, 12, 22);
-const tilted = (f) => H(f.tilt, 12, 22);
-const eyesOpen = (f) => A(L(f.closed, 0.4, 0.6), 1 - f.wink);
+const upright = (f) => L(f.tilt, 12, 20);
+const tilted = (f) => H(f.tilt, 14, 22);
+const frontal = (f) => L(Math.abs(f.yaw), 12, 20);
+const awake = (f) => A(1 - f.shut, 1 - f.wink);            // not shut, not winking
+const parted = (f) => O(H(f.teeth, 0.3, 0.5), H(f.lips, 0.06, 0.11));   // teeth showing
+const gape = (f) => O(parted(f), H(f.jaw, 0.25, 0.4));                  // mouth open or teeth showing
+const mouthShut = (f) => 1 - gape(f);
+const laughing = (f) => A(H(f.smile, 0.4, 0.55), gape(f));
+const sideways = (f) => H(f.lookSide, 0.68, 0.85);
+const kissing = (f) => H(f.kiss, 0.85, 1);
+const calm = (f) => L(f.smile, 0.2, 0.35);
 
-// e: the emoji. hint: how to make it. level: 1 easy .. 3 hard (game order).
-// s: 0..1. Combined faces get a small bonus (w) so they beat the simpler face
-// they contain.
+// e: the emoji. hint: how to make it (the only instruction in the game).
+// level: 1 easy .. 3 hard, the order of a round. slow: needs a longer look
+// before it shows, so a blink is not read as closed eyes.
+// s: 0..1. A face that contains a simpler one gets a small bonus (w) to win.
 export const EMOJIS = [
   { e: '😐', s: () => 0.3 },
-  { e: '🙂', level: 2, hint: 'ოდნავ გაიღიმე', s: (f) => A(H(f.smile, 0.25, 0.45), L(f.smile, 0.6, 0.8), L(f.jaw, 0.15, 0.3), upright(f), eyesOpen(f), L(f.smileAsym, 0.25, 0.4)) },
-  { e: '😊', level: 1, hint: 'ფართოდ გაიღიმე', s: (f) => A(H(f.smile, 0.6, 0.8), L(f.jaw, 0.12, 0.25), L(f.teeth, 0.25, 0.45), upright(f), eyesOpen(f), L(f.browUp, 0.4, 0.6)) },
-  { e: '😁', level: 2, hint: 'გაიღიმე, კბილები გამოაჩინე', s: (f) => A(H(f.smile, 0.55, 0.75), H(f.teeth, 0.3, 0.5), L(f.jaw, 0.15, 0.3), upright(f), eyesOpen(f)) },
-  { e: '😃', level: 1, hint: 'გაიცინე', s: (f) => A(H(f.smile, 0.45, 0.65), H(f.jaw, 0.2, 0.4), L(f.closed, 0.5, 0.7), upright(f)) },
-  { e: '😆', w: 1.1, level: 2, hint: 'გაიცინე, თვალები დახუჭე', s: (f) => A(H(f.smile, 0.45, 0.65), H(f.jaw, 0.2, 0.4), H(f.closed, 0.5, 0.7)) },
-  { e: '🤩', w: 1.1, level: 2, hint: 'გაიღიმე, წარბები აწიე', s: (f) => A(H(f.browUp, 0.4, 0.6), H(f.smile, 0.5, 0.7), upright(f)) },
-  { e: '🥰', w: 1.1, level: 1, hint: 'გაიღიმე, თავი გადახარე', s: (f) => A(tilted(f), H(f.smile, 0.45, 0.65), L(f.jaw, 0.15, 0.3)) },
-  { e: '🤪', w: 1.15, level: 2, hint: 'გაიცინე, თავი გადახარე', s: (f) => A(tilted(f), H(f.smile, 0.4, 0.6), H(f.jaw, 0.2, 0.4)) },
-  { e: '😏', level: 3, hint: 'ცალყბად გაიღიმე', s: (f) => A(H(f.smileAsym, 0.25, 0.4), L(f.jaw, 0.15, 0.3), 1 - f.wink) },
-  { e: '😉', w: 1.1, level: 1, hint: 'ჩაკარი თვალი', s: (f) => A(f.wink, L(f.pucker, 0.35, 0.55)) },
-  { e: '😘', w: 1.15, level: 2, hint: 'ჩაკარი თვალი და აკოცე', s: (f) => A(f.wink, H(f.pucker, 0.4, 0.6)) },
-  { e: '😗', level: 1, hint: 'ტუჩები წინ გამოწიე', s: (f) => A(H(f.pucker, 0.5, 0.7), eyesOpen(f), L(f.jaw, 0.25, 0.4)) },
-  { e: '😚', w: 1.1, level: 2, hint: 'ტუჩები გამოწიე, თვალები დახუჭე', s: (f) => A(H(f.pucker, 0.45, 0.65), H(f.closed, 0.55, 0.75)) },
-  { e: '😌', w: 1.05, level: 2, hint: 'თვალები დახუჭე და გაიღიმე', s: (f) => A(H(f.closed, 0.55, 0.75), H(f.smile, 0.3, 0.5), L(f.jaw, 0.15, 0.3)) },
-  { e: '😑', level: 1, hint: 'დახუჭე თვალები', s: (f) => A(H(f.closed, 0.55, 0.75), L(f.smile, 0.2, 0.35), L(f.jaw, 0.15, 0.3), L(f.pucker, 0.35, 0.55)) },
-  { e: '🥱', w: 1.1, level: 2, hint: 'დაამთქნარე', s: (f) => A(H(f.closed, 0.5, 0.7), H(f.jaw, 0.45, 0.65), L(f.smile, 0.3, 0.5)) },
-  { e: '😮', level: 1, hint: 'გააღე პირი', s: (f) => A(H(f.jaw, 0.3, 0.5), L(f.smile, 0.25, 0.4), L(f.browUp, 0.35, 0.55), L(f.browDown, 0.3, 0.5), L(f.closed, 0.45, 0.65)) },
-  { e: '😱', w: 1.1, level: 2, hint: 'პირი გააღე, წარბები აწიე', s: (f) => A(H(f.jaw, 0.4, 0.6), H(f.browUp, 0.4, 0.6), L(f.smile, 0.3, 0.5)) },
-  { e: '😳', level: 1, hint: 'აწიე წარბები', s: (f) => A(H(f.browUp, 0.45, 0.65), L(f.jaw, 0.12, 0.25), L(f.smile, 0.25, 0.4), L(f.browAsym, 0.2, 0.4), L(f.frown, 0.25, 0.45)) },
-  { e: '🤨', w: 1.05, level: 2, hint: 'ცალი წარბი აწიე', s: (f) => A(H(f.browAsym, 0.25, 0.45), L(f.smile, 0.4, 0.6), 1 - f.wink) },
-  { e: '😢', w: 1.1, level: 3, hint: 'მოიწყინე, წარბები აწიე', s: (f) => A(H(f.frown, 0.3, 0.5), H(f.browInner, 0.35, 0.55)) },
-  { e: '🙁', level: 3, hint: 'მოიწყინე', s: (f) => A(H(f.frown, 0.3, 0.5), L(f.browInner, 0.3, 0.5), L(f.browDown, 0.35, 0.55)) },
-  { e: '😠', level: 2, hint: 'შეკარი წარბები', s: (f) => A(H(f.browDown, 0.4, 0.6), L(f.jaw, 0.15, 0.3), L(f.smile, 0.25, 0.4), L(f.sneer, 0.35, 0.55)) },
-  { e: '🤬', w: 1.1, level: 3, hint: 'წარბები შეკარი და იყვირე', s: (f) => A(H(f.browDown, 0.35, 0.55), H(f.jaw, 0.3, 0.5), L(f.smile, 0.3, 0.5)) },
-  { e: '😖', w: 1.1, level: 3, hint: 'დამანჭე სახე', s: (f) => A(H(f.sneer, 0.4, 0.6), H(f.squint, 0.35, 0.55), L(f.smile, 0.3, 0.5)) },
-  { e: '🙄', level: 2, hint: 'თვალებით ზევით აიხედე', s: (f) => A(H(f.lookUp, 0.45, 0.65), L(f.smile, 0.4, 0.6), L(f.closed, 0.45, 0.65), L(f.browUp, 0.45, 0.65)) },
-  { e: '👀', level: 2, hint: 'თვალებით გვერდზე გაიხედე', s: (f) => A(H(f.lookSide, 0.55, 0.75), L(f.smile, 0.3, 0.5), L(f.jaw, 0.2, 0.35), eyesOpen(f)) },
-  { e: '😬', level: 3, hint: 'დაკრიჭე კბილები', s: (f) => A(H(f.stretch, 0.35, 0.55), H(f.teeth, 0.25, 0.45), L(f.smile, 0.4, 0.6)) },
-  { e: '🤐', level: 3, hint: 'მოკუმე ტუჩები', s: (f) => A(H(f.lipRoll, 0.4, 0.6), L(f.jaw, 0.15, 0.3), L(f.smile, 0.3, 0.5)) },
-  { e: '🥴', level: 3, hint: 'ტუჩები გვერდზე გასწიე', s: (f) => A(H(f.mouthSide, 0.4, 0.6), L(f.jaw, 0.3, 0.5), L(f.smileAsym, 0.3, 0.5)) },
-  { e: '🤔', level: 1, hint: 'თავი გადახარე', s: (f) => A(tilted(f), L(f.smile, 0.3, 0.5), L(f.jaw, 0.2, 0.35), eyesOpen(f)) },
+
+  // smiles
+  { e: '🙂', level: 1, hint: 'ოდნავ გაიღიმე', s: (f) => A(H(f.smile, 0.2, 0.35), L(f.smile, 0.62, 0.75), mouthShut(f), upright(f), awake(f), L(f.brows, 0.35, 0.5)) },
+  { e: '😊', level: 1, hint: 'ფართოდ გაიღიმე', s: (f) => A(H(f.smile, 0.62, 0.75), mouthShut(f), upright(f), awake(f), L(f.brows, 0.35, 0.5)) },
+  { e: '😁', level: 1, hint: 'გაიღიმე, კბილები გამოაჩინე', s: (f) => A(H(f.smile, 0.3, 0.45), parted(f), L(f.jaw, 0.25, 0.4), upright(f), awake(f), L(f.brows, 0.35, 0.5)) },
+  { e: '😃', level: 1, hint: 'გაიცინე', s: (f) => A(H(f.smile, 0.4, 0.6), H(f.jaw, 0.25, 0.4), upright(f), awake(f), L(f.brows, 0.35, 0.5)) },
+  { e: '😆', w: 1.1, slow: true, level: 2, hint: 'გაიცინე, თვალები დახუჭე', s: (f) => A(laughing(f), f.shut, upright(f)) },
+  { e: '🤣', w: 1.2, slow: true, level: 3, hint: 'თვალდახუჭული გაიცინე, თავი გადახარე', s: (f) => A(tilted(f), laughing(f), f.shut) },
+  { e: '🤩', w: 1.1, level: 2, hint: 'გაიღიმე, წარბები აწიე', s: (f) => A(H(f.brows, 0.35, 0.5), H(f.smile, 0.4, 0.55), upright(f), awake(f)) },
+  { e: '🥰', w: 1.1, level: 2, hint: 'გაიღიმე, თავი გადახარე', s: (f) => A(tilted(f), H(f.smile, 0.25, 0.4), L(f.jaw, 0.25, 0.4), awake(f)) },
+  { e: '🤪', w: 1.15, level: 2, hint: 'გაიცინე, თავი გადახარე', s: (f) => A(tilted(f), H(f.smile, 0.25, 0.4), H(f.jaw, 0.25, 0.4), awake(f)) },
+  { e: '😏', w: 1.05, level: 3, hint: 'გაიღიმე, გვერდზე გაიხედე', s: (f) => A(sideways(f), frontal(f), H(f.smile, 0.3, 0.45), mouthShut(f), awake(f)) },
+
+  // eyes
+  { e: '😉', w: 1.15, level: 1, hint: 'ჩაკარი თვალი', s: (f) => A(f.wink, 1 - kissing(f)) },
+  { e: '😘', w: 1.2, level: 2, hint: 'ჩაკარი თვალი და აკოცე', s: (f) => A(f.wink, kissing(f)) },
+  { e: '😌', w: 1.05, slow: true, level: 2, hint: 'თვალები დახუჭე, გაიღიმე', s: (f) => A(f.shut, H(f.smile, 0.15, 0.3), 1 - laughing(f), upright(f)) },
+  { e: '😑', slow: true, level: 1, hint: 'დახუჭე თვალები', s: (f) => A(f.shut, L(f.smile, 0.15, 0.3), L(f.jaw, 0.25, 0.4), L(f.teeth, 0.3, 0.5), L(f.kiss, 0.7, 0.85), upright(f), L(f.browDown, 0.35, 0.55)) },
+  { e: '😖', w: 1.05, slow: true, level: 3, hint: 'მაგრად დახუჭე თვალები', s: (f) => A(f.shut, H(f.browDown, 0.35, 0.55), L(f.smile, 0.15, 0.3), L(f.jaw, 0.25, 0.4)) },
+  { e: '😴', w: 1.1, slow: true, level: 2, hint: 'თვალები დახუჭე, თავი გადახარე', s: (f) => A(tilted(f), f.shut, 1 - laughing(f), L(f.jaw, 0.25, 0.4)) },
+  { e: '🥱', w: 1.1, slow: true, level: 2, hint: 'დაამთქნარე', s: (f) => A(f.shut, H(f.jaw, 0.25, 0.4), L(f.smile, 0.6, 0.75), L(f.teeth, 0.3, 0.5), L(f.browDown, 0.35, 0.55)) },
+  { e: '👀', level: 2, hint: 'თვალებით გვერდზე გაიხედე', s: (f) => A(sideways(f), frontal(f), calm(f), L(f.jaw, 0.25, 0.4), awake(f)) },
+
+  // mouth
+  { e: '😗', w: 1.05, level: 1, hint: 'ტუჩები წინ გამოწიე', s: (f) => A(kissing(f), L(f.lips, 0.12, 0.2), L(f.jaw, 0.25, 0.4), awake(f), L(f.pout, 0.5, 0.7)) },
+  { e: '😚', w: 1.15, slow: true, level: 2, hint: 'ტუჩები გამოწიე, თვალები დახუჭე', s: (f) => A(H(f.kiss, 0.7, 0.85), f.shut, L(f.jaw, 0.25, 0.4)) },
+  { e: '😯', w: 1.05, level: 2, hint: 'თქვი „უუუ“', s: (f) => A(H(f.pucker, 0.6, 0.8), H(f.lips, 0.12, 0.2), L(f.jaw, 0.3, 0.45), awake(f)) },
+  { e: '😮', level: 1, hint: 'გააღე პირი', s: (f) => A(H(f.jaw, 0.25, 0.4), L(f.smile, 0.4, 0.6), L(f.brows, 0.35, 0.55), 1 - f.shut, L(f.browDown, 0.35, 0.55)) },
+  { e: '😱', w: 1.1, level: 1, hint: 'პირი გააღე, წარბები აწიე', s: (f) => A(H(f.jaw, 0.25, 0.4), H(f.brows, 0.35, 0.55), L(f.smile, 0.4, 0.6)) },
+  { e: '😬', level: 3, hint: 'დაკრიჭე კბილები', s: (f) => A(H(f.bare, 0.3, 0.5), H(f.lips, 0.12, 0.2), L(f.smile, 0.4, 0.55), L(f.jaw, 0.25, 0.4), awake(f)) },
+  { e: '🫤', level: 3, hint: 'ტუჩები გვერდზე გასწიე', s: (f) => A(H(f.side, 0.3, 0.5), L(f.smile, 0.3, 0.5), L(f.jaw, 0.25, 0.4), awake(f)) },
+  { e: '🙁', level: 2, hint: 'ტუჩის კუთხეები ჩამოწიე', s: (f) => A(H(f.pout, 0.33, 0.5), calm(f), L(f.jaw, 0.25, 0.4), awake(f), L(f.side, 0.3, 0.5)) },
+
+  // brows
+  { e: '😳', level: 1, hint: 'აწიე წარბები', s: (f) => A(H(f.brows, 0.4, 0.55), L(f.jaw, 0.25, 0.4), L(f.smile, 0.25, 0.4), L(f.browAsym, 0.3, 0.45), awake(f), 1 - kissing(f)) },
+  { e: '🤨', w: 1.1, level: 3, hint: 'ცალი წარბი აწიე', s: (f) => A(H(f.browAsym, 0.3, 0.45), frontal(f), L(f.smile, 0.7, 0.85), L(f.jaw, 0.25, 0.4), awake(f)) },
+  { e: '😠', w: 1.05, level: 2, hint: 'დაიბღვირე', s: (f) => A(H(f.browDown, 0.5, 0.7), O(H(f.pout, 0.3, 0.5), f.narrow, H(f.teeth, 0.3, 0.5)), L(f.smile, 0.25, 0.4), L(f.jaw, 0.25, 0.4), 1 - f.shut) },
+  { e: '🤬', w: 1.1, level: 3, hint: 'წარბები შეკარი და იყვირე', s: (f) => A(H(f.browDown, 0.35, 0.55), H(f.jaw, 0.25, 0.4), L(f.smile, 0.45, 0.65)) },
+
+  // head
+  { e: '😕', level: 1, hint: 'თავი გადახარე', s: (f) => A(tilted(f), calm(f), L(f.jaw, 0.25, 0.4), awake(f), 1 - kissing(f)) },
 ];
 
 export const NEUTRAL = EMOJIS[0].e;
@@ -128,11 +165,22 @@ export function best(scores) {
   return { e, s };
 }
 
-// Keeps the shown emoji steady: a new one must lead for `hold` ms. `favour`
-// (the emoji being asked for) wins ties, so a near miss does not flicker.
+// The emoji for one detection result, or null when the face is turned too far
+// or too small to say.
+export function read(res) {
+  const f = features(res);
+  return f.away ? null : best(scoreAll(f)).e;
+}
+
+const SLOW = new Set(EMOJIS.filter((r) => r.slow).map((r) => r.e));
+
+// Keeps the shown emoji steady: a new one must lead for a short time (longer
+// for closed-eye faces, so a blink does not count). Times are milliseconds,
+// not frames. `favour` (the emoji being asked for) wins near-ties.
 export class Stabilizer {
-  constructor(hold = 160, margin = 0.1) {
+  constructor(hold = 140, slow = 320, margin = 0.1) {
     this.hold = hold;
+    this.slow = slow;
     this.margin = margin;
     this.reset();
   }
@@ -147,7 +195,7 @@ export class Stabilizer {
       return this.current;
     }
     if (this.cand !== top.e) { this.cand = top.e; this.since = now; }
-    if (now - this.since >= this.hold) { this.current = top.e; this.cand = null; }
+    if (now - this.since >= (SLOW.has(top.e) ? this.slow : this.hold)) { this.current = top.e; this.cand = null; }
     return this.current;
   }
 }

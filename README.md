@@ -36,8 +36,15 @@ Opening `index.html` by double-click does not work: the browser needs `localhost
 | `R` | reset for the next visitor | recalibrate for the next visitor |
 | `Esc` | back to the menu | back to the menu |
 | `F` | full screen | full screen |
+| `L` | light / dark page | light / dark page |
+| `M` | sound off / on | sound off / on |
 
 On a phone everything is done by tapping.
+
+## In the sun
+
+The sun button in the top bar (or `L`) switches to a light page with dark colours, which stays
+readable outdoors and next to a window. The choice is remembered on the device.
 
 ## Recording
 
@@ -56,8 +63,8 @@ MediaPipe Face Landmarker finds 478 points on the face and gives 52 "blendshape"
 numbers into an emoji; the flying game reads the blink, brow and jaw numbers. The bars and
 meters on screen are the model's real outputs.
 
-The emoji are pictures (Google's Noto Emoji), so every laptop and phone shows the same ones;
-iPhones, iPads and Macs use their own.
+The emoji are the iPhone's, as pictures, so a Windows laptop and an Android phone show the same
+ones as an iPhone. That artwork belongs to Apple and is not freely licensed: see `vendor/SOURCES.txt`.
 
 ## If something goes wrong
 
